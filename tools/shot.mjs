@@ -309,7 +309,7 @@ if (pageErrors.length) {
 // being investigated.
 const faults = [];
 if (state !== 'ready') faults.push(`page state is "${state}"`);
-if (pageErrors.length) faults.push(`${pageErrors.length} uncaught JS error(s)`);
+if (pageErrors.length) faults.push(`${pageErrors.length} error(s) recorded by the page`);
 if (faults.length && process.env.ALLOW_ERRORS !== '1') {
   console.log('FAILED —', faults.join('; '));
   cleanup(1);

@@ -2,9 +2,12 @@
 
 A full-viewport animated creek. The bank, water bed, rocks, log, reeds, trees,
 mushrooms and lanterns are a procedural Blender build exported to `assets/creek.glb`.
-A toad came in from Sketchfab as `assets/monster.glb`, and a B-17 as
-`assets/b17.glb`. The water, fireflies and sky are Three.js shaders. No build
-step, no bundler.
+The water, fireflies and sky are Three.js shaders. No build step, no bundler.
+
+Everything that is not the creek itself is a **guest**: a model with a folder under
+`models/`, a spec saying how big it is and where it stands, and one line in a
+manifest. Two came with the place — a toad from Sketchfab and a B-17 overhead — and
+[CONTRIBUTING.md](CONTRIBUTING.md) is how you add a third.
 
 ## Run it
 
@@ -63,6 +66,37 @@ quietly drops the idle drift.
 One honest gap: only the ground and the water are solid. Trees, bushes and
 boulders have no collision, so you can walk through them.
 
+## Adding your own model
+
+`models/` holds everything that is a guest rather than the scene. A guest is a
+folder with a `.glb` and a spec, plus one line in `models/index.js`:
+
+```js
+// models/heron/index.js
+export default {
+  id: 'heron',
+  name: 'Heron',
+  model: new URL('./model.glb', import.meta.url),
+  credit: { by: 'A. Contributor', licence: 'CC BY 4.0' },
+  size: 1.0,                 // metres, across its longest axis
+  grounded: true,            // put its feet on the terrain
+  at: [4.2, 0.4, -2.6],
+  face: 180,
+};
+```
+
+That is enough for it to appear at the right size, standing on the bank, with its
+author in the credit line. `size` is measured from the model's own bounds and
+`at` places its centre — or its feet, with `grounded` — so nobody has to know a
+scale factor or an origin, and nobody needs Blender to contribute.
+
+If it needs to do something, `setup(ctx)` gets the scene's own systems and may
+return an `update(dt, elapsed)`. The toad is the worked example: it reads the
+terrain heightmap, leaves ripples, watches the camera, and eats fireflies.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the full spec, the context reference, the
+size budget, and the two material fixes nearly every imported model needs.
+
 ## How it's built
 
 The split matters: **Blender owns the geometry, the browser owns the motion.**
@@ -113,26 +147,34 @@ The camera constants in `src/main.js` are the Blender ones after that swap.
 | `index.html` | Canvas, overlay type, loader, import map |
 | `src/main.js` | Scene assembly, lighting, camera, input, render loop |
 | `src/controls.js` | The camera rig: composed shot, walking, ground sampling |
-| `src/monster.js` | The toad: its waterline path, hop cycle, wake, wariness and tongue |
-| `src/heightmap.js` | Bilinear height sampler, shared by the walker, the toad and the wind |
+| `src/models.js` | The loader: fit, place, `setup(ctx)`, and error isolation |
+| `src/errors.js` | The page's own error record, which `shot.mjs` and CI read |
+| `src/heightmap.js` | Bilinear height sampler, shared by the walker, the wind and the guests |
 | `src/wind.js` | The breeze: sway mask, gust field, and a shadow depth pass to match |
 | `src/water.js` | The creek surface: waves, fresnel, depth colour, foam |
 | `src/ripples.js` | Ping-pong damped wave field for the pointer rings |
 | `src/fireflies.js` | One `Points` draw call; wander, blink, pointer attraction |
-| `src/hunt.js` | The toad's appetite: which firefly, and when one is worth a try |
-| `src/b17.js` | The aircraft: where it hangs, how it is turned, and its material fixes |
 | `src/sky.js` | Gradient sky, sun glow, and the baked environment map |
+| `models/index.js` | The manifest — one import line per guest |
+| `models/toad/index.js` | The toad's spec: where it lives, and how it is credited |
+| `models/toad/monster.js` | Its waterline path, hop cycle, wake, wariness and tongue |
+| `models/toad/hunt.js` | Its appetite: which firefly, and when one is worth a try |
+| `models/toad/model.glb` | The toad — 50k tris, 1.4 MB, imported from Sketchfab |
+| `models/b17/index.js` | The aircraft's spec and the material fixes it needs in this light |
+| `models/b17/model.glb` | The aircraft — 104k tris, 4.1 MB, imported from Sketchfab |
 | `server.mjs` | Zero-dependency static server (`npm start`) |
-| `assets/creek.glb` | The exported model — ~193k tris, 5.9 MB |
-| `assets/monster.glb` | The toad — 50k tris, 1.4 MB, imported from Sketchfab |
-| `assets/b17.glb` | The aircraft — 104k tris, 4.1 MB, imported from Sketchfab |
+| `assets/creek.glb` | The exported world — ~193k tris, 5.9 MB |
 | `blender/build_creek.py` | The whole procedural build |
 | `blender/build_monster.py` | Cleans up the imported toad and exports it |
 | `blender/build_b17.py` | Cleans up the imported aircraft and exports it |
 | `blender/creek.blend` | Saved Blender scene |
-| `tools/shot.mjs` | Headless-Chrome screenshot checker |
-| `vercel.json` | Deploy config: pins the framework preset, caches `/assets/` |
+| `tools/shot.mjs` | Headless-Chrome screenshot checker; exits non-zero on page errors |
+| `tools/model-budget.mjs` | Prints each model's size and triangles, and fails over budget |
+| `.github/workflows/check.yml` | CI: budget, then load the page in Chrome and keep the shot |
+| `vercel.json` | Deploy config: pins the framework preset, caches `/assets/` and `/models/` |
 | `.vercelignore` | Allowlist of what gets uploaded — the site, and nothing else |
+| `CONTRIBUTING.md` | How to add a model, and what the context gives you |
+| `LICENSE` | MIT for the code; the models keep their own |
 
 ## Turning the knobs
 
@@ -177,7 +219,7 @@ Nearly everything worth changing is a named constant at the top of a file.
 | `WALK_BOUNDS` | How far you're allowed to roam, in `main.js` |
 | `waterY` | Ground height below which the creek counts as a wall — raise it to keep further from the water |
 
-**The toad** — `src/monster.js`
+**The toad** — `models/toad/monster.js`
 
 | Constant | Effect |
 | --- | --- |
@@ -194,7 +236,7 @@ Nearly everything worth changing is a named constant at the top of a file.
 | `PATH_X0`, `PATH_X1`, `START_X` | Which stretch of shore it patrols, and where it begins |
 | `TARGET_SIZE` | The toad's length, in `blender/build_monster.py` |
 
-**The hunt** — `src/hunt.js`
+**The hunt** — `models/toad/hunt.js`
 
 | Constant | Effect |
 | --- | --- |
@@ -217,19 +259,21 @@ rather than teleporting; without the pause and the head-turn, the tongue simply
 appears. The tongue itself is the scene's one extra draw call — a twelve-triangle
 tapered spike, driven in world space, casting no shadow.
 
-**The aircraft** — `src/b17.js`
+**The aircraft** — `models/b17/index.js`
 
 | Constant | Effect |
 | --- | --- |
-| `POSITION` | Where it hangs over the creek, in three.js metres |
-| `YAW_DEG`, `PITCH_DEG`, `ROLL_DEG` | How it is aimed. The dive attitude is baked into the sculpt |
+| `size` | The wingspan, in metres |
+| `measure` | What that number describes: `B17_Hull`, not the tracer spray |
+| `at` | Where it hangs over the creek, in three.js metres |
+| `face` | Which way it is flying. The dive attitude is baked into the sculpt |
 | `ENV_INTENSITY`, `COLOUR_LIFT` | How much sky it picks up, and how far off black the airframe sits |
 | `EMISSIVE_BOOST` | How hard the burning wing roots glow |
 | `TRACER_GLOW_SCALE` | Multiplier over the rounds' own emission, for working the glow against the bloom |
 | `CAST_SHADOW` | Off, and measurably so — see below |
 | `TARGET_SPAN` | The aircraft's wingspan in metres, in `blender/build_b17.py` |
 
-`POSITION` is more constrained than it looks, and the constraint is a single
+`at` is more constrained than it looks, and the constraint is a single
 number. The opening camera sits at eye height with a 36° vertical field of view,
 so only about fifteen degrees of sky are in frame above the horizon — which puts a
 ceiling of roughly `0.27 × distance` on height. "Near" and "high" are therefore one
@@ -305,7 +349,7 @@ and exported on its own:
 #   import_asset(source="sketchfab", id="db8e45b28c9e495d8472b10f75d82847",
 #                target_size=1.35)
 exec(open(r"...\blender\build_monster.py").read())
-run()            # bakes the imports, faces it, sizes it, writes assets/monster.glb
+run()            # bakes the imports, faces it, sizes it, writes models/toad/model.glb
 ```
 
 `run()` is idempotent, so it is safe to re-run against a scene that has already
@@ -316,7 +360,7 @@ puts the origin at its feet, cuts the base colour to 1024, and exports with
 textures embedded as JPEG.
 
 Worth knowing: the asset is named `…_animated`, but it arrives with no armature
-and no actions, so all of its movement is procedural in `src/monster.js`.
+and no actions, so all of its movement is procedural in `models/toad/monster.js`.
 
 The toad walks the waterline from `x = -27` to `x = -3.5`. That stretch stops
 short of the fallen log at `x ≈ 0` and the stepping stones at `x ≈ 4`, neither of
@@ -333,7 +377,7 @@ Same shape as the toad, and for the same reason — kept out of `creek.glb` so
 #   import_asset(source="sketchfab", id="2693bbf7485c4f038a31b6e3e47c62c5",
 #                target_size=30)
 exec(open(r"...\blender\build_b17.py").read())
-run()     # bakes, recentres, corrects the materials, trims textures, writes assets/b17.glb
+run()     # bakes, recentres, corrects the materials, trims textures, writes models/b17/model.glb
 ```
 
 `run()` is idempotent. Two details matter before touching it. It deletes only the
@@ -360,21 +404,38 @@ loading them back: the exporter's `AUTO` mode reads the packed bytes, so setting
 `image.file_format` alone ships them as PNG regardless.
 
 The asset is a posed sculpt — no armature, no actions. Nothing in it moves, and
-nothing in `src/b17.js` moves it either.
+nothing in `models/b17/index.js` moves it either.
 
 ## Checking it
 
 ```
+npm run check                                   # model budgets, no browser needed
 node server.mjs
 node tools/shot.mjs http://127.0.0.1:5173/ shot.png 1600 900
 ```
 
-Drives headless Chrome over the DevTools protocol, waits for `window.__creekReady`,
-prints any console errors, then screenshots. WebGL runs on SwiftShader, so expect
-~20s. Env knobs: `SETTLE_MS`, `WAIT_MS`, `CDP_PORT`, `CHROME`, and `EXTRA_FLAGS`
-for anything else Chrome should be launched with —
-`EXTRA_FLAGS="--force-prefers-reduced-motion"` is how the reduced-motion path gets
-tested.
+`npm run check` walks `models/`, reads each `.glb`'s own JSON chunk, and prints
+every guest's size and triangle count against the budget in
+`tools/model-budget.mjs`. It fails if one of them, or all of them, has grown too
+far — the one number that gets worse with every contribution.
+
+`shot.mjs` drives headless Chrome over the DevTools protocol, waits for
+`window.__creekReady`, prints any console errors, then screenshots. It **exits
+non-zero** if the page never reached ready, or if `window.__creekErrors` is not
+empty — which is where a model that failed to load, place or dress itself records
+the fact, so a contribution that breaks cannot be quiet about it. The shot is
+written either way, because a failing run is exactly when you want to see the
+frame. `ALLOW_ERRORS=1` turns the exit code off, for when the error is the thing
+being investigated.
+
+WebGL runs on SwiftShader, so expect ~20s. Env knobs: `SETTLE_MS`, `WAIT_MS`,
+`CDP_PORT`, `CHROME`, and `EXTRA_FLAGS` for anything else Chrome should be
+launched with — `EXTRA_FLAGS="--force-prefers-reduced-motion"` is how the
+reduced-motion path gets tested. `CHROME` is found in the usual platform
+locations if you do not set it.
+
+`.github/workflows/check.yml` runs the budget and the screenshot on every pull
+request, and keeps the screenshot as an artifact.
 
 Set `MOVES` to drive the pointer before the shot — useful for checking the
 interactive bits, which a still otherwise can't show:
@@ -407,8 +468,16 @@ And because of that dt clamp, the quickest way to check anything slow — the to
 crossing its beat, say — is to drive the clock yourself:
 
 ```
-EVAL2="for (let i=0;i<200;i++) { __creek.monster.update(0.05, i*0.05); __creek.ripples.update(0.05); }"
+EVAL="(() => { const c = __creek; const p = c.camera.position.clone(); c.camera.position.set(45, 6, 0); c.camera.updateMatrixWorld(true); for (let i = 0; i < 6000; i++) { const t = i * 0.05; c.fireflies.uniforms.uTime.value = t; c.monster.update(0.05, t); c.hunt.update(0.05); } c.camera.position.copy(p); return 'strikes ' + c.hunt.strikes + ' caught ' + c.hunt.caught; })()"
 ```
+
+Three things that example is careful about, all of them learned the hard way.
+The camera has to go, or the toad spends the run watching it — it stops inside
+nine metres, which is the whole point of the wariness. The fireflies' clock is a
+shader uniform, so the swarm has to be advanced alongside the toad or the toad is
+hunting a frozen sky. And `ripples.update()` is a render pass, not a simulation
+step: thousands of them in one call queue thousands of GPU frames and the
+screenshot times out.
 
 A strike can be checked the same way. `strike()` takes a world-space point, and
 `mouthWorld` is live once `update()` has run:
@@ -448,14 +517,14 @@ settings filled in by hand:
 | Output Directory | root | The default for "Other" is `public` if it exists, else the root, and there is no `public` |
 
 `.vercelignore` is an allowlist: ignore the root, then let `index.html`, `src/`,
-`assets/`, `package.json` and `vercel.json` back in. Without it, the Blender
-sources, the export scripts, `tools/shot.mjs` and a 4.8 MB `creek.blend` would all
-be uploaded and publicly fetchable at `/blender/creek.blend` and friends.
-`vercel.json` has to be named in the allowlist — the `/*` above would otherwise
-take the config with it.
+`assets/`, `models/`, `package.json` and `vercel.json` back in. Without it, the
+Blender sources, the export scripts, `tools/shot.mjs` and a 4.8 MB `creek.blend`
+would all be uploaded and publicly fetchable at `/blender/creek.blend` and
+friends. `vercel.json` has to be named in the allowlist — the `/*` below would
+otherwise take the config with it.
 
-`vercel.json` also puts a cache header on `/assets/`, where 11.4 of the page's
-11.7 MB lives. Vercel's default for a file it cannot content-hash is
+`vercel.json` also puts a cache header on `/assets/` and `/models/`, where 11.3 of
+the page's 11.7 MB lives. Vercel's default for a file it cannot content-hash is
 `max-age=0, must-revalidate`, which costs a conditional request per model on every
 visit; the rule gives them a day of freshness and a week of
 `stale-while-revalidate`. `src/` is deliberately left on the default. The code
@@ -473,6 +542,10 @@ import map in `index.html`, so the page needs a network that can reach it.
 
 ## Credits
 
+The credit line in the page corner is not written into the HTML — it is generated
+from the `credit` block in each model's spec, so a model cannot arrive without its
+author's name attached to it. These are the long-form versions, with links.
+
 - **Toad** — "Standing_giant_toad_green_skin_animated" by
   [pikupila](https://sketchfab.com/pikupila), licensed
   [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via
@@ -484,4 +557,5 @@ import map in `index.html`, so the page needs a network that can reach it.
   [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via
   [Sketchfab](https://sketchfab.com/3d-models/crash-of-a-b-17-2693bbf7485c4f038a31b6e3e47c62c5).
   Credited in the page corner alongside the toad.
-- Everything else — geometry, shaders, motion — is built here.
+- Everything else — geometry, shaders, motion — is built here, and is MIT
+  licensed. See [LICENSE](LICENSE); the models keep their own terms.

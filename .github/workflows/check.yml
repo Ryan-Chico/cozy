@@ -1,0 +1,69 @@
+# The scene's only real failure mode is a model that quietly does not appear, and
+# a still image cannot show you what is missing. So the check is: load the page in
+# a real browser, fail on anything it threw, and keep the screenshot either way.
+#
+# Two things make that possible. tools/shot.mjs exits non-zero when the page never
+# reached ready, or when window.__creekErrors is not empty — and every model that
+# fails to load, place or dress itself records there instead of only warning. So a
+# contribution that breaks does not merely look wrong; it goes red.
+#
+# Chrome is preinstalled on ubuntu-latest and shot.mjs passes --no-sandbox, which
+# it needs as a non-root user in a container. WebGL is SwiftShader: slow, but the
+# page's own dt clamp means everything still advances, just in slow motion.
+
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  page:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # no dependencies to install: that is the point of the project
+      - name: Model budget
+        run: npm run check
+
+      - name: Serve the page
+        run: |
+          node server.mjs &
+          for i in $(seq 1 50); do
+            if curl -sf http://127.0.0.1:5173/ > /dev/null; then
+              echo "up"
+              exit 0
+            fi
+            sleep 0.2
+          done
+          echo "the server never came up"
+          exit 1
+
+      - name: Screenshot
+        env:
+          CHROME: /usr/bin/google-chrome
+          # the models are ~5 MB and this machine has no cache; give the page
+          # time to settle before the shutter
+          SETTLE_MS: 26000
+        run: node tools/shot.mjs http://127.0.0.1:5173/ shot.png 1600 900
+
+      # if: always() — the run that failed is the one whose screenshot you need
+      - name: Keep the screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shot
+          path: shot.png
+          if-no-files-found: warn

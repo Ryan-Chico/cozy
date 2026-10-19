@@ -1,12 +1,17 @@
 {
   "name": "cozy-creek",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
-  "description": "An animated creek: procedural Blender model, Three.js water and fireflies.",
+  "description": "An animated creek: procedural Blender model, Three.js water and fireflies, and a guest list for other people's models.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ryan-Chico/cozy.git"
+  },
   "scripts": {
     "start": "node server.mjs",
-    "dev": "node server.mjs"
+    "dev": "node server.mjs",
+    "check": "node tools/model-budget.mjs",
+    "shot": "node tools/shot.mjs"
   },
   "keywords": [
     "three.js",

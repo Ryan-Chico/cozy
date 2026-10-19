@@ -3,7 +3,7 @@
   "framework": null,
   "headers": [
     {
-      "source": "/assets/(.*)",
+      "source": "/(assets|models)/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

@@ -7,6 +7,7 @@ node_modules/
 # Where tools/shot.mjs drops its screenshots unless you point OUT elsewhere
 shot*.png
 b.png
+tools/out/
 
 # build_b17.py writes its JPEG re-encodes here for one hop and deletes them
 blender/_tex_tmp/
