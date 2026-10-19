@@ -41,9 +41,10 @@ It also eats. Stand and watch for a few seconds and it will pick a firefly out o
 the air: it stops, swings its head onto the fly, holds for a beat, then throws its
 tongue at it and hauls it in. It comes up short about a fifth of the time.
 
-High over the far end of the creek a B-17 is going down: wings alight, smoke
-trailing, tracer fire falling away below it. It is a long way off and the haze
-has most of it. Nothing about it moves — it is a held moment, not an animation.
+Over the creek a B-17 is going down: wings alight, smoke trailing, tracer fire
+falling away below it. It hangs close enough to fill the top of the frame, and
+its rounds cross the whole sky and pass over the near bank. Nothing about it
+moves — it is a held moment, not an animation.
 
 | Action | How |
 | --- | --- |
@@ -222,16 +223,30 @@ tapered spike, driven in world space, casting no shadow.
 | `YAW_DEG`, `PITCH_DEG`, `ROLL_DEG` | How it is aimed. The dive attitude is baked into the sculpt |
 | `ENV_INTENSITY`, `COLOUR_LIFT` | How much sky it picks up, and how far off black the airframe sits |
 | `EMISSIVE_BOOST` | How hard the burning wing roots glow |
-| `TARGET_SIZE` | The whole tableau's largest dimension, in `blender/build_b17.py` |
+| `TRACER_GLOW_SCALE` | Multiplier over the rounds' own emission, for working the glow against the bloom |
+| `CAST_SHADOW` | Off, and measurably so — see below |
+| `TARGET_SPAN` | The aircraft's wingspan in metres, in `blender/build_b17.py` |
 
-`POSITION` is more constrained than it looks. The opening camera sits at eye
-height with a 36° vertical field of view, so only about fifteen degrees of sky
-are in frame above the horizon: "high in the sky" is much lower than it sounds,
-and the aircraft has to be well down the creek to be up in that band at all.
-Raise `Y` and it leaves the top of the frame; bring it nearer and it drops behind
-the treeline. The haze does the rest — at that distance `FogExp2` has already
-blended it roughly seven tenths of the way into the warm sky, which is why it
-reads as far away rather than as a model on a backdrop.
+`POSITION` is more constrained than it looks, and the constraint is a single
+number. The opening camera sits at eye height with a 36° vertical field of view,
+so only about fifteen degrees of sky are in frame above the horizon — which puts a
+ceiling of roughly `0.27 × distance` on height. "Near" and "high" are therefore one
+dial rather than two, and the aircraft is set at about 55 m because that is as
+near as it can be while still clearing the treeline. At that range it fills about
+two fifths of the frame's width and reads at roughly 45% into the haze, against
+the 70% it wore at 75 m. Bring it nearer and it drops behind the trees; lift it and
+the top of the frame takes its wings.
+
+It casts no shadow, and that is a measurement rather than a default. At the sun's
+22° of elevation a shadow falls about 2.5× its height up-sun, which puts this one
+some 30 m past an aircraft that already sits beyond the terrain's edge — there is
+only haze where it would land. Checked from directly above that point and again
+from the creek.
+
+The model is much bigger than the bomber. The tracers sweep about six times its
+wingspan, so at a 26 m span the tableau runs 151 m across and 62 m tall: parts of
+it leave the frame at any distance you view it from, and rounds pass overhead on
+the near bank. That is the intent. It reads as a moment, not as an object.
 
 
 **The breeze** — `src/wind.js`
@@ -316,19 +331,31 @@ Same shape as the toad, and for the same reason — kept out of `creek.glb` so
 #   import_asset(source="sketchfab", id="2693bbf7485c4f038a31b6e3e47c62c5",
 #                target_size=30)
 exec(open(r"...\blender\build_b17.py").read())
-run()     # bakes, recentres, corrects the material, trims textures, writes assets/b17.glb
+run()     # bakes, recentres, corrects the materials, trims textures, writes assets/b17.glb
 ```
 
 `run()` is idempotent. Two details matter before touching it. It deletes only the
 empties above *its own* meshes, because the toad's import also arrived under a
-wrapper called `Sketchfab_model`. And it normalises the whole tableau rather than
-the aircraft, so the tracer fire stays in proportion.
+wrapper called `Sketchfab_model`. And it normalises on the aircraft's wingspan
+(`TARGET_SPAN`) rather than on the tableau, scaling every part by the same factor —
+which it has to, because the tracers are anchored at the gun positions and scaling
+the FX separately would detach them from the aircraft firing them. Normalising on
+the tableau instead is what let the bomber come out a sixth of the size the config
+said: the configured number described the tracer spray, not the plane.
 
 The material arrives fully metallic and renders near black under this dusk, so
 `run()` cuts the `Metallic` link and writes the factor to zero, leaving the
-roughness map in place. The opaque textures are re-encoded to JPEG by writing them
-out through disk and loading them back: the exporter's `AUTO` mode reads the packed
-bytes, so setting `image.file_format` alone ships them as PNG regardless.
+roughness map in place. It also splits the tracer fire onto its own copy of the FX
+material. Smoke and tracers share one, and the shared emissive map is black where
+the rounds are, so they rendered as dark specks and read as a dotted line rather
+than as fire. The copy unlinks that map and carries a flat warm emission
+(`TRACER_EMISSION`, `TRACER_EMISSION_STRENGTH`), which the exporter writes as
+`emissiveFactor` plus `KHR_materials_emissive_strength`; the base colour stays
+linked, since its alpha is what shapes each round and the smoke behind it.
+
+The opaque textures are re-encoded to JPEG by writing them out through disk and
+loading them back: the exporter's `AUTO` mode reads the packed bytes, so setting
+`image.file_format` alone ships them as PNG regardless.
 
 The asset is a posed sculpt — no armature, no actions. Nothing in it moves, and
 nothing in `src/b17.js` moves it either.

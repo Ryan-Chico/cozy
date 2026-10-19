@@ -23,10 +23,12 @@ What run() does:
     import also arrived under an empty called Sketchfab_model
   - recentres on the aircraft itself, so positioning it is just "put the plane
     here" and the smoke and tracer fire hang off it where the artist left them
-  - normalises the whole tableau (aircraft, smoke, tracers, bombs) to
-    TARGET_SIZE, not just the plane: the tracers sweep about six times the
-    aircraft's own span, and normalising on the plane alone would throw a
-    hundred metres of tracer fire across the sky
+  - normalises on the AIRCRAFT's own span (TARGET_SPAN), not on the tableau.
+    The tracers sweep about six times the aircraft's span, so normalising on the
+    tableau means the configured number describes the tracer spray and the
+    bomber quietly comes out a sixth of it
+  - gives the tracer fire its own material, so the rounds can be lit as fire
+    without touching the smoke they share a base colour with
   - cuts the textures down and sends everything except the FX base colour to
     JPEG, because that one carries the alpha that makes the smoke soft
 
@@ -57,8 +59,15 @@ SOURCE_MESHES = {
     "Smoke_FX_0": "B17_Smoke",
     "Bullets_FX_0": "B17_Tracers",
 }
-TARGET_SIZE = 40.0        # metres, the whole tableau's largest dimension
+TARGET_SPAN = 26.0        # metres, the aircraft's own wingspan
 AIRCRAFT_PREFIX = "B-17"  # what the recentring anchors on
+
+# The tracer rounds get their own copy of the FX material so they can be lit as
+# fire. The shared emissive map is black where the rounds are, which is why they
+# came out as dark specks and read as a dotted line; a warm emission with no map
+# of its own makes every round glow, and the base colour's alpha still shapes it.
+TRACER_EMISSION = (1.0, 0.42, 0.12, 1.0)
+TRACER_EMISSION_STRENGTH = 5.0
 
 # stem -> (longest side, format). PNG only where an alpha channel matters.
 # Keyed on the stem, not the filename: after one run the JPEGs are renamed to
@@ -142,23 +151,27 @@ def bounds(objs):
     return lo, hi
 
 
-def fit(meshes, size=TARGET_SIZE):
-    """Normalise the tableau and put the origin on the aircraft's centre.
+def fit(meshes, span=TARGET_SPAN):
+    """Normalise on the aircraft, and put the origin on its centre.
+
+    The factor comes from the AIRCRAFT's own extent, not the tableau's. Scaling
+    every part by the same number is not a convenience -- it is required: the
+    tracers are anchored at the gun positions, so scaling the FX by anything
+    other than the airframe detaches them from the aircraft that is firing them.
 
     One offset and one factor for every mesh, so the parts keep their relative
     placement. The origin lands on the aircraft rather than on the tableau,
     because the aircraft is the thing worth saying "put this here" about.
     """
-    lo, hi = bounds(meshes)
-    span = max(hi[i] - lo[i] for i in range(3))
-    if span <= 1e-6:
-        raise RuntimeError("B-17 has no extent")
-    k = size / span
-
     aircraft = [m for m in meshes if m.name[len("B17_"):] in ("Hull", "Bones", "Guts")]
     if not aircraft:
         aircraft = meshes
+
     alo, ahi = bounds(aircraft)
+    reach = max(ahi[i] - alo[i] for i in range(3))
+    if reach <= 1e-6:
+        raise RuntimeError("B-17 has no extent")
+    k = span / reach
     anchor = (alo + ahi) * 0.5
 
     for ob in meshes:
@@ -170,7 +183,7 @@ def fit(meshes, size=TARGET_SIZE):
         ob.scale = (1.0, 1.0, 1.0)
     bpy.context.view_layer.update()
 
-    # measured after the fit, not from lo/hi above: those are the bounds it
+    # measured after the fit, not from the bounds above: those are what it
     # arrived with, and printing those reports the input, not the result
     lo, hi = bounds(meshes)
     alo, ahi = bounds(aircraft)
@@ -208,6 +221,49 @@ def dress_material(meshes):
                     mat.node_tree.links.remove(link)
                 metal.default_value = 0.0
                 print("material %s: metallic forced to 0" % mat.name)
+
+
+def split_tracer_material(meshes):
+    """Give the tracer fire a material of its own, so the rounds can glow.
+
+    Smoke and tracers share the FX material, and they have to in one respect:
+    the alpha that shapes both of them comes from the same base colour texture.
+    But the shared emissive map is black where the rounds are, so they render as
+    dark specks and read as a dotted line rather than as fire.
+
+    Copying the material for the tracer mesh lets the rounds carry a warm
+    emission while the smoke is left exactly as the artist made it. The emission
+    is a flat colour with its map unlinked -- tracer rounds are hot metal, not a
+    painted surface, so there is nothing in the texture worth keeping. The base
+    colour stays linked, which is what keeps each round's shape.
+    """
+    for ob in meshes:
+        if ob.name != "B17_Tracers":
+            continue
+        for slot in range(len(ob.data.materials)):
+            mat = ob.data.materials[slot]
+            if mat is None or not mat.use_nodes:
+                continue
+
+            if mat.name.endswith("_tracer"):
+                copy = mat            # already split on an earlier run
+            else:
+                copy = mat.copy()
+                copy.name = mat.name + "_tracer"
+                ob.data.materials[slot] = copy
+
+            for node in copy.node_tree.nodes:
+                if node.type != 'BSDF_PRINCIPLED':
+                    continue
+                colour = node.inputs.get('Emission Color')
+                strength = node.inputs.get('Emission Strength')
+                if colour is not None:
+                    for link in list(colour.links):
+                        copy.node_tree.links.remove(link)
+                    colour.default_value = TRACER_EMISSION
+                if strength is not None:
+                    strength.default_value = TRACER_EMISSION_STRENGTH
+            print("material %s -> %s (warm emission)" % (mat.name, copy.name))
 
 
 def stem_of(name):
@@ -369,6 +425,7 @@ def run():
     bake_transforms(meshes)
     fit(meshes)
     dress_material(meshes)
+    split_tracer_material(meshes)
     trim_textures(meshes)
     path = export_glb(meshes)
     inspect_glb(path)
