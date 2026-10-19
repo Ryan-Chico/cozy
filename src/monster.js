@@ -44,6 +44,23 @@ const PATH_STEP = 1.0;
 const SMOOTH_PASSES = 2;
 const START_X = -8.0;
 
+// The mouth, in the toad's own space. Measured off the mesh rather than
+// guessed: the snout tip reaches z ≈ 0.67 and spans y ≈ 0.88..1.04, centred on
+// x = 0, so the mouth sits just inside the front of that.
+const MOUTH_LOCAL = new THREE.Vector3(0, 0.93, 0.62);
+
+// The strike, in four beats. The aim is the long one on purpose — it is what
+// separates "hunting" from "teleporting into a snap".
+const AIM_SECONDS = 0.38;
+const SNAP_SECONDS = 0.09;
+const HOLD_SECONDS = 0.06;
+const RECOVER_SECONDS = 0.34;
+const STRIKE_TOTAL = AIM_SECONDS + SNAP_SECONDS + HOLD_SECONDS + RECOVER_SECONDS;
+const STRIKE_LUNGE = 0.06;      // metres of body thrown into it
+const MISS_SHORT = 0.7;         // a miss stops this far short of the fly
+const TONGUE_ROOT = 0.055;
+const TONGUE_TIP = 0.016;
+
 // the near bank is the one the hero camera stands on: three.js z heads
 // negative towards it, so walk in from there and out into the channel
 const SCAN_Z0 = -13.0;
@@ -128,6 +145,27 @@ export function createMonster({
     console.warn('[creek] no shoreline for the toad to walk; it will sit at the origin');
   }
 
+  // The tongue has no geometry in the GLB — the asset is a static sculpt — so
+  // it is made here: a tapered spike along +Z, scaled to reach. It is driven in
+  // world space rather than parented to the toad, because it has to aim at
+  // something that is not part of the toad.
+  const tongueGeo = new THREE.CylinderGeometry(TONGUE_TIP, TONGUE_ROOT, 1, 6, 1, true);
+  tongueGeo.rotateX(Math.PI / 2);     // +Y becomes +Z, the axis lookAt aims
+  tongueGeo.translate(0, 0, 0.5);     // root at the origin, tip at 1
+  const tongue = new THREE.Mesh(
+    tongueGeo,
+    new THREE.MeshStandardMaterial({
+      color: 0xa25f57,
+      roughness: 0.55,
+      side: THREE.DoubleSide,
+      envMapIntensity: 0.8,
+    }),
+  );
+  tongue.name = 'Tongue';
+  tongue.castShadow = false;
+  tongue.receiveShadow = false;
+  tongue.visible = false;
+
   // ---- state -------------------------------------------------------------
   let s = length * THREE.MathUtils.clamp((startX - x0) / (x1 - x0), 0, 1);
   let dir = 1;                  // +1 travels towards x1
@@ -141,6 +179,11 @@ export function createMonster({
   let groundY = waterY - WADE_DEPTH;
   let placed = false;
   let lastDistance = Infinity;
+  let strikeT = -1;             // seconds since the strike began; -1 is idle
+  let strikeHit = true;
+  let strikeNotify = null;      // called once, when the tongue lands
+  const strikeTarget = new THREE.Vector3();
+  const mouthWorld = new THREE.Vector3();
 
   const point = new THREE.Vector3();
   const tangent = new THREE.Vector3();
@@ -154,6 +197,14 @@ export function createMonster({
 
   function update(dt, elapsed) {
     if (!curve) return;
+
+    if (strikeT >= 0) {
+      strikeT += dt;
+      if (strikeT >= STRIKE_TOTAL) {
+        strikeT = -1;
+        strikeNotify = null;
+      }
+    }
 
     // ---- how close are you? ---------------------------------------------
     let distance = Infinity;
@@ -192,6 +243,10 @@ export function createMonster({
     else if (mode === 'dwell' || alert) wantSpeed = 0;
     else wantSpeed = CRUISE_SPEED * dir;
 
+    // a strike outranks all of it: it stops to aim, and stays stopped to
+    // swallow before carrying on
+    if (strikeT >= 0) wantSpeed = 0;
+
     // it settles down faster than it sets off
     const k = 1 - Math.exp(-dt * (wantSpeed === 0 ? 2.8 : 1.6));
     speed += (wantSpeed - speed) * k;
@@ -222,8 +277,12 @@ export function createMonster({
     const air = lift * still;
 
     // ---- facing ----------------------------------------------------------
+    // While striking, the prey outranks you: it will look away from the camera
+    // to take a fly, then come back to watching.
     let targetYaw;
-    if ((alert || mode === 'flee') && camera) {
+    if (strikeT >= 0 && strikeT < AIM_SECONDS + SNAP_SECONDS + HOLD_SECONDS) {
+      targetYaw = Math.atan2(strikeTarget.x - point.x, strikeTarget.z - point.z);
+    } else if ((alert || mode === 'flee') && camera) {
       targetYaw = Math.atan2(camera.position.x - point.x, camera.position.z - point.z);
       targetYaw += Math.sin(elapsed * 0.7) * 0.05;      // and a slow breath
     } else {
@@ -233,15 +292,76 @@ export function createMonster({
       Math.sin(targetYaw - yaw),
       Math.cos(targetYaw - yaw),
     );
-    yaw += turn * (1 - Math.exp(-dt * TURN_RATE));
+    // it swings round faster when there is something to catch
+    yaw += turn * (1 - Math.exp(-dt * (strikeT >= 0 ? TURN_RATE * 2.4 : TURN_RATE)));
 
     // ---- pose ------------------------------------------------------------
+    // The lunge is time-based only. The mouth is derived afterwards, because it
+    // rides on the body that this block is about to move.
+    let lunge = 0;
+    if (strikeT >= 0) {
+      const s = strikeT - AIM_SECONDS;
+      if (s > 0) {
+        const out = Math.min(s / SNAP_SECONDS, 1);
+        const back = s > SNAP_SECONDS + HOLD_SECONDS
+          ? Math.min((s - SNAP_SECONDS - HOLD_SECONDS) / RECOVER_SECONDS, 1)
+          : 0;
+        lunge = out * (1 - back);
+      }
+    }
+
     const stretch = SQUASH * still * (lift - 0.5);
     const breath = 1 + 0.012 * Math.sin(elapsed * 1.5) * (1 - still);
 
-    object.position.set(point.x, groundY + air * HOP_HEIGHT, point.z);
-    object.rotation.set(-0.13 * Math.cos(hopPhase) * still, yaw, 0);
+    object.position.set(
+      point.x + Math.sin(yaw) * lunge * STRIKE_LUNGE,
+      groundY + air * HOP_HEIGHT,
+      point.z + Math.cos(yaw) * lunge * STRIKE_LUNGE,
+    );
+    object.rotation.set(
+      -0.13 * Math.cos(hopPhase) * still + lunge * 0.16,
+      yaw,
+      0,
+    );
     object.scale.set(1 - stretch * 0.55, breath + stretch, 1 - stretch * 0.55);
+
+    // ---- the tongue ------------------------------------------------------
+    object.updateMatrixWorld(true);
+    mouthWorld.copy(MOUTH_LOCAL).applyMatrix4(object.matrixWorld);
+
+    if (strikeT >= 0) {
+      const s = strikeT - AIM_SECONDS;
+      // a miss aims at the fly but simply stops short of it
+      const far = strikeTarget.distanceTo(mouthWorld) * (strikeHit ? 1 : MISS_SHORT);
+
+      // The tongue has landed. A fly is not caught in mid-air — it is caught
+      // now — so whoever asked to be told gets told at this instant, and only
+      // once.
+      if (strikeNotify && s >= SNAP_SECONDS) {
+        strikeNotify(mouthWorld, strikeHit);
+        strikeNotify = null;
+      }
+
+      let reach = 0;
+      if (s > 0 && s < SNAP_SECONDS) {
+        const e = s / SNAP_SECONDS;
+        reach = far * (1 - (1 - e) * (1 - e));      // out fast, then slacken
+      } else if (s >= SNAP_SECONDS && s < SNAP_SECONDS + HOLD_SECONDS) {
+        reach = far;
+      } else if (s >= SNAP_SECONDS + HOLD_SECONDS) {
+        const r = (s - SNAP_SECONDS - HOLD_SECONDS) / RECOVER_SECONDS;
+        reach = r >= 1 ? 0 : far * (1 - r);
+      }
+
+      tongue.visible = reach > 0.004;
+      if (tongue.visible) {
+        tongue.position.copy(mouthWorld);
+        tongue.lookAt(strikeTarget);
+        tongue.scale.set(1, 1, reach);
+      }
+    } else {
+      tongue.visible = false;
+    }
 
     // ---- the wake --------------------------------------------------------
     if (ripples && Math.abs(speed) > 0.05) {
@@ -254,16 +374,35 @@ export function createMonster({
     placed = true;
   }
 
+  /**
+   * Aim the tongue at a world-space point. False if a strike is in flight.
+   * `onSnap(mouth, connected)` fires once, the instant the tongue lands — which
+   * is where a fly actually gets caught, not when the toad decides to try.
+   */
+  function strike(target, hit = true, onSnap = null) {
+    if (strikeT >= 0) return false;
+    strikeTarget.copy(target);
+    strikeHit = hit;
+    strikeNotify = onSnap;
+    strikeT = 0;
+    return true;
+  }
+
   // put it in position before the first frame, so it never flashes at the origin
   update(0, 0);
 
   return {
     object,
+    tongue,          // driven in world space, so the caller adds it to the scene
     update,
+    strike,
     curve,
+    mouthWorld,      // live: valid once update() has run
     get mode() { return mode; },
     get alerted() { return alert; },
     get speed() { return speed; },
     get distance() { return lastDistance; },
+    get striking() { return strikeT >= 0; },
+    get yaw() { return yaw; },
   };
 }

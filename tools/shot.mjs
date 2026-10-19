@@ -23,6 +23,8 @@ const W = Number(process.argv[4] || 1200);
 const H = Number(process.argv[5] || 675);
 const PORT = Number(process.env.CDP_PORT || 9333);
 const WAIT_MS = Number(process.env.WAIT_MS || 90000);
+// anything else Chrome needs, e.g. EXTRA_FLAGS="--force-prefers-reduced-motion"
+const EXTRA = (process.env.EXTRA_FLAGS || '').trim().split(/\s+/).filter(Boolean);
 
 const profile = join(tmpdir(), `creek-shot-${Date.now()}`);
 mkdirSync(dirname(OUT), { recursive: true });
@@ -37,6 +39,7 @@ const chrome = spawn(CHROME, [
   '--hide-scrollbars', '--mute-audio', '--no-sandbox',
   '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
   '--window-size=' + W + ',' + H,
+  ...EXTRA,
   'about:blank',
 ], { stdio: 'ignore' });
 
@@ -157,16 +160,22 @@ const info = await send('Runtime.evaluate', {
 // let the water settle and the fireflies blink for a moment before shooting
 await sleep(Number(process.env.SETTLE_MS || 4000));
 
+/** Runtime.evaluate, with the exception explained rather than just "Uncaught". */
+async function evaluate(expression, label) {
+  const r = await send('Runtime.evaluate', { expression, returnByValue: true });
+  if (r.exceptionDetails) {
+    const d = r.exceptionDetails;
+    const desc = (d.exception && (d.exception.description || d.exception.value)) || d.text || 'unknown';
+    console.log(`[${label} threw]`, String(desc).split('\n')[0]);
+  } else if (r.result && r.result.value !== undefined) {
+    console.log(`[${label}]`, r.result.value);
+  }
+}
+
 // Optional first-frame probe, for A/B checks that need a "before" value:
 //   EVAL="window.__m0 = __creek.monster.object.position.toArray()"
 // Sits before MOVES so it captures the undisturbed scene.
-if (process.env.EVAL) {
-  const r = await send('Runtime.evaluate', {
-    expression: process.env.EVAL, returnByValue: true,
-  });
-  if (r.exceptionDetails) console.log('[EVAL threw]', r.exceptionDetails.text);
-  else if (r.result && r.result.value !== undefined) console.log('[EVAL]', r.result.value);
-}
+if (process.env.EVAL) await evaluate(process.env.EVAL, 'EVAL');
 
 // Optional pointer drive, for checking the interactive bits in a still:
 //   MOVES="300,300 420,380 560,440"  move the cursor through those points
@@ -242,13 +251,7 @@ writeFileSync(OUT, Buffer.from(shot.data, 'base64'));
 // Optional second frame with something changed in between, for A/B checks:
 //   OUT2=... EVAL2="__creek.sun.castShadow = false"
 if (process.env.OUT2) {
-  if (process.env.EVAL2) {
-    const r = await send('Runtime.evaluate', {
-      expression: process.env.EVAL2, returnByValue: true,
-    });
-    if (r.exceptionDetails) console.log('[EVAL2 threw]', r.exceptionDetails.text);
-    else if (r.result && r.result.value !== undefined) console.log('[EVAL2]', r.result.value);
-  }
+  if (process.env.EVAL2) await evaluate(process.env.EVAL2, 'EVAL2');
   await sleep(Number(process.env.AFTER2_MS || 900));
   const shot2 = await send('Page.captureScreenshot', { format: 'png', fromSurface: true });
   writeFileSync(process.env.OUT2, Buffer.from(shot2.data, 'base64'));

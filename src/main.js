@@ -23,6 +23,7 @@ import { createSky, bakeEnvironment } from './sky.js';
 import { RippleSim } from './ripples.js';
 import { createWalker } from './controls.js';
 import { createMonster } from './monster.js';
+import { createHunt } from './hunt.js';
 import { buildHeightSampler } from './heightmap.js';
 import { bakeSway, createWind, SWAY_TYPES } from './wind.js';
 
@@ -137,6 +138,7 @@ let walker = null;        // the camera rig: hero shot + walking
 let terrain = null;       // the mesh the walker stands on
 let monster = null;       // the toad in the shallows
 let monsterGltf = null;   // its own download, arrives when it arrives
+let hunt = null;          // its appetite
 let ready = false;
 
 // the breeze, and the mask that makes foliage bend from its roots rather than
@@ -240,7 +242,14 @@ function tryCreateMonster() {
       reducedMotion: REDUCED_MOTION,
     });
     scene.add(monster.object);
-    if (window.__creek) window.__creek.monster = monster;
+    scene.add(monster.tongue);
+    // the tongue is driven in world space, so it is a sibling of the toad
+    // rather than a child of it
+    if (fireflies) hunt = createHunt({ monster, fireflies, ripples });
+    if (window.__creek) {
+      window.__creek.monster = monster;
+      window.__creek.hunt = hunt;
+    }
   } catch (err) {
     console.warn('[creek] could not place the toad — the creek carries on without one', err);
     monster = null;
@@ -355,8 +364,8 @@ gltfLoader.load(
       spread: new THREE.Vector2(54, 13),
       fogColor: FOG_COLOR,
     });
-    fireflies.renderOrder = 10;
-    scene.add(fireflies);
+    fireflies.points.renderOrder = 10;
+    scene.add(fireflies.points);
 
     ripples = new RippleSim(renderer, {
       origin: RIPPLE_ORIGIN,
@@ -635,7 +644,7 @@ function frame(now) {
 
   // ---- fireflies: drift toward the pointer for a while after it moves
   if (fireflies) {
-    const fu = fireflies.material.uniforms;
+    const fu = fireflies.uniforms;
     fu.uTime.value = elapsed;
     const since = elapsed - lastMoveAt;
     const target = since < 0.35 ? 1.0 : (since > 3.0 ? 0.0 : 1.0 - (since - 0.35) / 2.65);
@@ -660,6 +669,9 @@ function frame(now) {
 
   // ---- the toad, which is watching you back
   if (monster) monster.update(dt, elapsed);
+  // ...and taking the occasional fly. Runs after the toad so it reads a mouth
+  // that has already been placed this frame.
+  if (hunt) hunt.update(dt);
 
   // the sky is a 200m sphere; keep it centred so the gradient never skews
   sky.position.copy(camera.position);

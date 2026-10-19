@@ -36,6 +36,10 @@ There is a toad in the shallows, and it is aware of you. It works its way along
 the waterline leaving faint rings in the water; come within about nine metres
 and it stops and turns to face you; crowd it and it hops off down the creek.
 
+It also eats. Stand and watch for a few seconds and it will pick a firefly out of
+the air: it stops, swings its head onto the fly, holds for a beat, then throws its
+tongue at it and hauls it in. It comes up short about a fifth of the time.
+
 | Action | How |
 | --- | --- |
 | Look around | drag — the world follows your hand, as on a map |
@@ -75,6 +79,16 @@ height. `src/wind.js` bakes that into an `aSway` attribute at load, which also
 means one shared material can drive every swaying mesh — the per-species reach
 rides along inside the weight. No Blender changes, no extra draw calls.
 
+The toad eating is the exception that proves the rule. Its prey lives entirely
+inside a vertex shader, so nothing on the CPU knows where any firefly is, and
+"catch the nearest one" cannot be written directly. The drift is closed-form,
+though, so `src/fireflies.js` runs it a second time in JavaScript as
+`positionAt()`: one formula evaluated twice, with the shared numbers interpolated
+into the GLSL so that retuning cannot make the two disagree. The toad aims at
+that answer. The catch itself is fired by the toad, at the instant the tongue
+lands on the fly — hauled in any earlier, the fly would be in the mouth during
+the wind-up and the tongue would snap at empty water.
+
 Two consequences worth remembering. Every creek mesh exports with an identity
 transform, so object space *is* world space and the shader can push vertices
 directly instead of hauling a matrix around — a build that starts emitting real
@@ -93,12 +107,13 @@ The camera constants in `src/main.js` are the Blender ones after that swap.
 | `index.html` | Canvas, overlay type, loader, import map |
 | `src/main.js` | Scene assembly, lighting, camera, input, render loop |
 | `src/controls.js` | The camera rig: composed shot, walking, ground sampling |
-| `src/monster.js` | The toad: its waterline path, hop cycle, wake and wariness |
+| `src/monster.js` | The toad: its waterline path, hop cycle, wake, wariness and tongue |
 | `src/heightmap.js` | Bilinear height sampler, shared by the walker, the toad and the wind |
 | `src/wind.js` | The breeze: sway mask, gust field, and a shadow depth pass to match |
 | `src/water.js` | The creek surface: waves, fresnel, depth colour, foam |
 | `src/ripples.js` | Ping-pong damped wave field for the pointer rings |
 | `src/fireflies.js` | One `Points` draw call; wander, blink, pointer attraction |
+| `src/hunt.js` | The toad's appetite: which firefly, and when one is worth a try |
 | `src/sky.js` | Gradient sky, sun glow, and the baked environment map |
 | `server.mjs` | Zero-dependency static server (`npm start`) |
 | `assets/creek.glb` | The exported model — ~193k tris, 5.9 MB |
@@ -162,8 +177,35 @@ Nearly everything worth changing is a named constant at the top of a file.
 | `FLEE_RADIUS`, `FLEE_SECONDS` | When it bolts, and for how long |
 | `DWELL_MIN`, `DWELL_MAX` | How long it loiters at each end of its beat |
 | `WAKE_STEP`, `WAKE_STRENGTH` | How often it disturbs the water, and how hard |
+| `MOUTH_LOCAL` | Where the tongue comes out, in the toad's own space |
+| `AIM_SECONDS`, `SNAP_SECONDS`, `HOLD_SECONDS`, `RECOVER_SECONDS` | The four beats of a strike |
+| `STRIKE_LUNGE`, `MISS_SHORT` | How much body goes into it, and how far short a miss stops |
 | `PATH_X0`, `PATH_X1`, `START_X` | Which stretch of shore it patrols, and where it begins |
 | `TARGET_SIZE` | The toad's length, in `blender/build_monster.py` |
+
+**The hunt** — `src/hunt.js`
+
+| Constant | Effect |
+| --- | --- |
+| `COOLDOWN_MIN`, `COOLDOWN_MAX` | Patience between strikes. This, not `REACH`, is the throttle on how often it eats |
+| `REACH` | How far the tongue can go, in metres |
+| `CONE_COS` | How far off its nose it will bother looking |
+| `MISS_CHANCE` | How often it comes up short |
+
+These were measured rather than guessed, and the measurement changed the design
+twice. Prey within reach of the *mouth* — not the toad's feet, because the mouth
+sits 0.83 m up and the swarm spreads from 0.25 m to 3.65 m, so height dominates
+the distance — is there only 9% of the time, which by itself sounds too rare to
+be worth watching for. Driving the real loop for five simulated minutes gives
+sixteen strikes and twelve swallows, about three a minute, because the toad stops
+to eat and its cooldown only starts once it has. The lure that was planned as the
+remedy for rarity was therefore never built.
+
+`AIM_SECONDS` is the beat to tune first. It is what makes a strike read as hunting
+rather than teleporting; without the pause and the head-turn, the tongue simply
+appears. The tongue itself is the scene's one extra draw call — a twelve-triangle
+tapered spike, driven in world space, casting no shadow.
+
 
 **The breeze** — `src/wind.js`
 
@@ -183,6 +225,7 @@ from the other side. Under `prefers-reduced-motion` the whole thing runs at a
 quarter strength rather than stopping dead.
 
 **Sky** — `src/sky.js`: `uZenith`, `uHorizon`, `uGround`, `uSunColor`.
+
 **The model** — `blender/build_creek.py`: `SEED` for a different scatter of
 rocks, grass, ferns, shrubs and trees, and the `P` palette for every material
 colour.
@@ -245,7 +288,10 @@ node tools/shot.mjs http://127.0.0.1:5173/ shot.png 1600 900
 
 Drives headless Chrome over the DevTools protocol, waits for `window.__creekReady`,
 prints any console errors, then screenshots. WebGL runs on SwiftShader, so expect
-~20s. Env knobs: `SETTLE_MS`, `WAIT_MS`, `CDP_PORT`, `CHROME`.
+~20s. Env knobs: `SETTLE_MS`, `WAIT_MS`, `CDP_PORT`, `CHROME`, and `EXTRA_FLAGS`
+for anything else Chrome should be launched with —
+`EXTRA_FLAGS="--force-prefers-reduced-motion"` is how the reduced-motion path gets
+tested.
 
 Set `MOVES` to drive the pointer before the shot — useful for checking the
 interactive bits, which a still otherwise can't show:
@@ -280,6 +326,21 @@ crossing its beat, say — is to drive the clock yourself:
 ```
 EVAL2="for (let i=0;i<200;i++) { __creek.monster.update(0.05, i*0.05); __creek.ripples.update(0.05); }"
 ```
+
+A strike can be checked the same way. `strike()` takes a world-space point, and
+`mouthWorld` is live once `update()` has run:
+
+```
+EVAL2="(() => { const V = __creek.camera.position.constructor; const m = __creek.monster; m.strike(m.mouthWorld.clone().add(new V(0.8, 0.2, 0.2)), true, (mouth) => __creek.fireflies.eat(0, mouth)); for (let i=0;i<14;i++) m.update(1/30, i/30); })()"
+```
+
+Fourteen thirtieths of a second in, the tongue is out and the fly is on its way
+into the mouth. To hold it there for the shot, stub the frame loop out first —
+`__creek.monster.update = () => {}` — and drive the strike by hand, or the loop's
+own clock carries it through the recover before Chrome gets a frame out.
+
+`onSnap` is where a catch actually happens, and passing one is how a test can
+swallow a firefly without waiting for the toad to pick one itself.
 
 Timed input runs on the frame clock, not the wall clock: `main.js` clamps `dt` to
 50ms, so under SwiftShader at a few frames per second anything you trigger
