@@ -440,6 +440,17 @@ gltfLoader.load(
   (err) => {
     console.error('[creek] could not load assets/creek.glb', err);
     loaderEl.classList.add('is-done');
+    // Which hint is worth showing depends on where the page is being served
+    // from. The model failing to arrive over file:// is expected and has a
+    // one-line fix; the same failure on a deployed origin is a network problem
+    // or an asset that never got uploaded, and telling that visitor to run
+    // `npm start` would be nonsense.
+    const local = location.protocol === 'file:'
+      || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+    if (!local) {
+      document.getElementById('fallbackLocal').style.display = 'none';
+      document.getElementById('fallbackRemote').style.display = '';
+    }
     document.getElementById('fallback').style.display = 'grid';
   },
 );

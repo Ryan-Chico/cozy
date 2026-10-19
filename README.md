@@ -131,6 +131,8 @@ The camera constants in `src/main.js` are the Blender ones after that swap.
 | `blender/build_b17.py` | Cleans up the imported aircraft and exports it |
 | `blender/creek.blend` | Saved Blender scene |
 | `tools/shot.mjs` | Headless-Chrome screenshot checker |
+| `vercel.json` | Deploy config: pins the framework preset, caches `/assets/` |
+| `.vercelignore` | Allowlist of what gets uploaded — the site, and nothing else |
 
 ## Turning the knobs
 
@@ -427,6 +429,47 @@ Timed input runs on the frame clock, not the wall clock: `main.js` clamps `dt` t
 50ms, so under SwiftShader at a few frames per second anything you trigger
 advances roughly ten times slower than it would on a real GPU. Give a `KEYS`
 sequence seconds, not milliseconds, to see its effect.
+
+## Deploying it
+
+It is a static site: no build, no dependencies, no server code. `server.mjs`
+exists only because `file://` can't fetch a `.glb`, and a host replaces it
+outright, so it goes up anywhere that serves files.
+
+`vercel.json` holds the whole configuration, and there is very little of it. It
+is enough that neither the dashboard import nor `npx vercel --prod` needs any
+settings filled in by hand:
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Framework Preset | Other | Pinned by `"framework": null`. Without it, adding a bundler later would silently change the preset |
+| Build Command | empty | There is no `build` script, and nothing to build |
+| Install Command | empty | `package.json` has no dependencies |
+| Output Directory | root | The default for "Other" is `public` if it exists, else the root, and there is no `public` |
+
+`.vercelignore` is an allowlist: ignore the root, then let `index.html`, `src/`,
+`assets/`, `package.json` and `vercel.json` back in. Without it, the Blender
+sources, the export scripts, `tools/shot.mjs` and a 4.8 MB `creek.blend` would all
+be uploaded and publicly fetchable at `/blender/creek.blend` and friends.
+`vercel.json` has to be named in the allowlist — the `/*` above would otherwise
+take the config with it.
+
+`vercel.json` also puts a cache header on `/assets/`, where 11.4 of the page's
+11.7 MB lives. Vercel's default for a file it cannot content-hash is
+`max-age=0, must-revalidate`, which costs a conditional request per model on every
+visit; the rule gives them a day of freshness and a week of
+`stale-while-revalidate`. `src/` is deliberately left on the default. The code
+changes far more often than the models do, and it is small enough that
+revalidating it is free.
+
+The trade-off is worth knowing: the assets are cached at a fixed URL, so after you
+rebuild a `.glb` and redeploy, a returning visitor keeps the old one until the
+cache expires. The first reload serves the stale file and refreshes behind the
+scenes; the second gets the new one. Nothing is content-hashed, and nothing needs
+to be — the alternative is a bundler, and this project doesn't have one.
+
+One thing deploying does not change: `three` still arrives from unpkg through the
+import map in `index.html`, so the page needs a network that can reach it.
 
 ## Credits
 

@@ -226,11 +226,15 @@
 
   <div id="fallback">
     <p>
-      This scene has to be served over HTTP — the browser won't load the 3D model<br />
-      from a <code>file://</code> path.
+      The creek didn't load — its 3D model didn't arrive.
     </p>
-    <p style="margin-top: 1.2rem">
-      From this folder run <code>npm start</code>, then open <code>http://localhost:5173</code>.
+    <p id="fallbackLocal" style="margin-top: 1.2rem">
+      Opened from disk, that's expected: browsers won't fetch the model from a
+      <code>file://</code> path. From this folder run <code>npm start</code>, then
+      open <code>http://localhost:5173</code>.
+    </p>
+    <p id="fallbackRemote" style="margin-top: 1.2rem; display: none">
+      Check the network, and that <code>assets/</code> made it into the deployment.
     </p>
   </div>
 
