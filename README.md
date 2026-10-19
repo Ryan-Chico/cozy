@@ -6,8 +6,8 @@ The water, fireflies and sky are Three.js shaders. No build step, no bundler.
 
 Everything that is not the creek itself is a **guest**: a model with a folder under
 `models/`, a spec saying how big it is and where it stands, and one line in a
-manifest. Two came with the place — a toad from Sketchfab and a B-17 overhead — and
-[CONTRIBUTING.md](CONTRIBUTING.md) is how you add a third.
+manifest. Three came with the place — a toad from Sketchfab, a B-17 overhead and a
+mecha in the shallows — and [CONTRIBUTING.md](CONTRIBUTING.md) is how you add a fourth.
 
 ## Run it
 
@@ -48,6 +48,11 @@ Over the creek a B-17 is going down: wings alight, smoke trailing, tracer fire
 falling away below it. It hangs close enough to fill the top of the frame, and
 its rounds cross the whole sky and pass over the near bank. Nothing about it
 moves — it is a held moment, not an animation.
+
+Further up the creek a raid boss has waded into the shallows and stopped: nine
+metres of rusted armour, its gun laid across the channel and its vents still lit.
+It does not move either. After the aircraft's noise, it is the silence that makes
+it strange.
 
 | Action | How |
 | --- | --- |
@@ -162,11 +167,14 @@ The camera constants in `src/main.js` are the Blender ones after that swap.
 | `models/toad/model.glb` | The toad — 50k tris, 1.4 MB, imported from Sketchfab |
 | `models/b17/index.js` | The aircraft's spec and the material fixes it needs in this light |
 | `models/b17/model.glb` | The aircraft — 104k tris, 4.1 MB, imported from Sketchfab |
+| `models/shogun/index.js` | The mecha's spec: size, placement and the material lift |
+| `models/shogun/model.glb` | The mecha — 103k tris, 3.8 MB, imported from Sketchfab |
 | `server.mjs` | Zero-dependency static server (`npm start`) |
 | `assets/creek.glb` | The exported world — ~193k tris, 5.9 MB |
 | `blender/build_creek.py` | The whole procedural build |
 | `blender/build_monster.py` | Cleans up the imported toad and exports it |
 | `blender/build_b17.py` | Cleans up the imported aircraft and exports it |
+| `blender/build_shogun.py` | Strips the mecha's baked-in VFX, fixes materials and exports it |
 | `blender/creek.blend` | Saved Blender scene |
 | `tools/shot.mjs` | Headless-Chrome screenshot checker; exits non-zero on page errors |
 | `tools/model-budget.mjs` | Prints each model's size and triangles, and fails over budget |
@@ -294,6 +302,21 @@ wingspan, so at a 26 m span the tableau runs 151 m across and 62 m tall: parts o
 it leave the frame at any distance you view it from, and rounds pass overhead on
 the near bank. That is the intent. It reads as a moment, not as an object.
 
+**The mecha** — `models/shogun/index.js`
+
+| Constant | Effect |
+| --- | --- |
+| `size` | The whole model's longest axis — the gun's 7.3 m reach, not its 5.4 m height |
+| `at` | Where it stands, in three.js metres; `grounded` puts its feet on the creek bed |
+| `face` | Yaw; zero points down +Z, and -80 turns its chest to the opening shot |
+| `ENV_INTENSITY`, `COLOUR_LIFT` | How much sky the armour takes, and how far the rust sits off black |
+| `GLOW_BOOST` | How hard the vents and sensors glow |
+| `DECIMATE`, `TEXTURE_SIZE` | How far the build script cuts the mesh and the maps, in `blender/build_shogun.py` |
+
+The trap is that `size` measures the gun. The machine stands 5.42 m at the asset's
+own scale against a 7.33 m reach, so a spec that looks "too big" is usually just
+describing the weapon. At 13 it is a 9.6 m machine: a head above the treeline, a
+shin in the water, and well inside the opening frame.
 
 **The breeze** — `src/wind.js`
 
@@ -557,5 +580,10 @@ author's name attached to it. These are the long-form versions, with links.
   [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via
   [Sketchfab](https://sketchfab.com/3d-models/crash-of-a-b-17-2693bbf7485c4f038a31b6e3e47c62c5).
   Credited in the page corner alongside the toad.
+- **Shogun** — "Raid Boss Shogun" by
+  [zeroswat](https://sketchfab.com/zeroswat), licensed
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via
+  [Sketchfab](https://sketchfab.com/3d-models/raid-boss-shogun-8700d16e247d4a51956ef904643b95fa).
+  Credited in the page corner alongside the other two.
 - Everything else — geometry, shaders, motion — is built here, and is MIT
   licensed. See [LICENSE](LICENSE); the models keep their own terms.

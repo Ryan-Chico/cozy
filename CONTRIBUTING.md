@@ -215,7 +215,7 @@ and leave the flag off.
 
 ## Rights and attribution
 
-**Every guest needs a `credit.by`.** This is not a formality: both built-in
+**Every guest needs a `credit.by`.** This is not a formality: all three built-in
 models are CC BY, which obliges anyone showing them to name the author, and the
 credit line in the page corner is generated from these blocks. A spec without
 one is a console warning *and* a failed check — shipping someone's model without

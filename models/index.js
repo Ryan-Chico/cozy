@@ -13,5 +13,6 @@
 
 import toad from './toad/index.js';
 import b17 from './b17/index.js';
+import shogun from './shogun/index.js';
 
-export default [toad, b17];
+export default [toad, b17, shogun];
