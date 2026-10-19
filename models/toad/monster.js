@@ -19,7 +19,7 @@
 
 import * as THREE from 'three';
 
-import { buildHeightSampler } from './heightmap.js';
+import { buildHeightSampler } from '../../src/heightmap.js';
 
 const CRUISE_SPEED = 0.62;      // m/s
 const FLEE_SPEED = 1.75;

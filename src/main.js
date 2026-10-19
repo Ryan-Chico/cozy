@@ -22,11 +22,12 @@ import { createFireflies } from './fireflies.js';
 import { createSky, bakeEnvironment } from './sky.js';
 import { RippleSim } from './ripples.js';
 import { createWalker } from './controls.js';
-import { createMonster } from './monster.js';
-import { createHunt } from './hunt.js';
-import { createB17 } from './b17.js';
 import { buildHeightSampler } from './heightmap.js';
 import { bakeSway, createWind, SWAY_TYPES } from './wind.js';
+import { loadModels } from './models.js';
+import { noteError } from './errors.js';
+// the guest list — one import line per model, and nothing else to register
+import modelSpecs from '../models/index.js';
 
 // ---------------------------------------------------------------- the shot
 
@@ -137,11 +138,29 @@ let fireflies = null;
 let lantern = null;
 let walker = null;        // the camera rig: hero shot + walking
 let terrain = null;       // the mesh the walker stands on
-let monster = null;       // the toad in the shallows
-let monsterGltf = null;   // its own download, arrives when it arrives
-let hunt = null;          // its appetite
-let b17 = null;           // the aircraft hanging over the creek
+let heightAt = null;      // the terrain sampler, shared by walker, wind and guests
 let ready = false;
+
+// The guests' per-frame work, in the order their specs registered it. The toad
+// is the reason the order is load-bearing: it moves, and then its appetite reads
+// the mouth it has just placed, so those two callbacks must not be swapped.
+const modelUpdates = [];
+
+// A guest that finishes before the creek does has nowhere to be exposed yet,
+// because window.__creek is not built until the creek lands. Latecomers park
+// here and are folded in when it is.
+const lateExpose = {};
+
+function expose(key, value) {
+  lateExpose[key] = value;
+  if (window.__creek) window.__creek[key] = value;
+}
+
+// Resolved once the terrain, its sampler and the water systems all exist, which
+// is precisely what a model that wants to stand on the ground is waiting for.
+// See `needs` in src/models.js.
+let markCreekReady;
+const creekLanded = new Promise((resolve) => { markCreekReady = resolve; });
 
 // the breeze, and the mask that makes foliage bend from its roots rather than
 // slide. Shared by every swaying mesh, so it is created once, up here.
@@ -211,6 +230,35 @@ function addSurfaceDetail(material) {
   material.needsUpdate = true;
 }
 
+/**
+ * The credit line, built from the specs rather than written into the page.
+ *
+ * Both bundled models are CC BY, which obliges anyone showing them to name the
+ * author. Taking the line from the same object that adds the model to the scene
+ * means the attribution cannot drift away from the thing it describes, and a
+ * contribution that forgets it is loud in the console rather than quietly
+ * missing on a line nobody reads. It counts as an error for the same reason:
+ * shipping someone else's model without naming them is worse than shipping it
+ * badly.
+ */
+function renderCredits(specs) {
+  const el = document.getElementById('credit');
+  if (!el) return;
+
+  const parts = [];
+  for (const spec of specs) {
+    const c = spec.credit || {};
+    if (!c.by) {
+      console.warn(`[creek] ${spec.id} has no credit — nobody is attributed for it`);
+      noteError(`credit ${spec.id}`, new Error('missing `credit.by`'));
+      continue;
+    }
+    const notes = [c.licence, c.via && `via ${c.via}`].filter(Boolean).join(', ');
+    parts.push(`${spec.name || c.work || spec.id} by ${c.by}${notes ? ` (${notes})` : ''}`);
+  }
+  el.textContent = parts.join(' · ');
+}
+
 const gltfLoader = new GLTFLoader();
 const manager = new THREE.LoadingManager();
 
@@ -224,39 +272,38 @@ manager.onLoad = () => {
 
 gltfLoader.manager = manager;
 
-/**
- * The toad needs both halves at once: its own model, and the terrain whose
- * heightmap it reads to find the waterline. Whichever of the two arrives
- * second is the one that builds it.
- */
-function tryCreateMonster() {
-  if (monster || !monsterGltf || !terrain) return;
+// --------------------------------------------------------------- the guests
+//
+// Every model in models/ starts fetching its own GLB here — in parallel with the
+// creek and with each other — and settles whenever it lands. The context below
+// is filled in as the creek comes up rather than assembled first, and that is
+// the whole reason a guest's download can start before the terrain it will
+// stand on exists: a spec that needs the terrain says `needs: ['creek']`, and
+// the loader holds its setup back until this object is complete.
+const modelCtx = {
+  scene,
+  camera,
+  renderer,
+  sun,
+  sky,
+  wind,
+  waterY: -0.05,
+  reducedMotion: REDUCED_MOTION,
+  creekReady: creekLanded,
+  onFrame: (fn) => modelUpdates.push(fn),
+  expose,
+  // null until the creek lands:
+  terrain: null,
+  heightAt: null,
+  water: null,
+  waterMat: null,
+  ripples: null,
+  fireflies: null,
+  lantern: null,
+  walker: null,
+};
 
-  // the toad is a guest here: if anything about it fails, the creek must not
-  // go down with it (this runs inside the creek's own load callback)
-  try {
-    monster = createMonster({
-      gltf: monsterGltf,
-      terrain,
-      waterY: 0,        // the waterline itself; the walker's -0.05 is its own
-      ripples,
-      camera,
-      reducedMotion: REDUCED_MOTION,
-    });
-    scene.add(monster.object);
-    scene.add(monster.tongue);
-    // the tongue is driven in world space, so it is a sibling of the toad
-    // rather than a child of it
-    if (fireflies) hunt = createHunt({ monster, fireflies, ripples });
-    if (window.__creek) {
-      window.__creek.monster = monster;
-      window.__creek.hunt = hunt;
-    }
-  } catch (err) {
-    console.warn('[creek] could not place the toad — the creek carries on without one', err);
-    monster = null;
-  }
-}
+loadModels({ specs: modelSpecs, ctx: modelCtx, loader: gltfLoader });
 
 gltfLoader.load(
   './assets/creek.glb',
@@ -323,6 +370,15 @@ gltfLoader.load(
       });
     });
 
+    // One sampler for everyone who asks the ground how high it is: the walker,
+    // the wind, and any guest that wants to stand on it. heightmap.js memoises
+    // per geometry, so this is the same sampler they would each have built.
+    if (terrain) {
+      const sampler = buildHeightSampler(terrain);
+      heightAt = (x, z) => sampler.sample(x, z);
+      modelCtx.heightAt = heightAt;
+    }
+
     // ---- the breeze
     // The foliage gets a clone of the nature material, so the wind code only
     // ever compiles for plants. Rocks, stones, the log and the mushrooms share
@@ -336,8 +392,7 @@ gltfLoader.load(
     });
 
     if (swaying.length) {
-      const sampler = terrain ? buildHeightSampler(terrain) : null;
-      const groundAt = sampler ? (x, z) => sampler.sample(x, z) : null;
+      const groundAt = heightAt;
 
       const windMat = swaying[0].material.clone();
       // a clone does not inherit onBeforeCompile, so the grain has to be put
@@ -422,23 +477,39 @@ gltfLoader.load(
       ripples.drop(-14 + i * 3.4, (i % 3 - 1) * 2.6, 0.34);
     }
 
+    // Hand the finished world to the guests. Anything whose spec said it needs
+    // the creek has been holding its setup back for exactly this moment.
+    modelCtx.terrain = terrain;
+    modelCtx.water = water;
+    modelCtx.waterMat = waterMat;
+    modelCtx.ripples = ripples;
+    modelCtx.fireflies = fireflies;
+    modelCtx.lantern = lantern;
+    modelCtx.walker = walker;
+
     ready = true;
     loaderEl.classList.add('is-done');
     overlayEl.classList.add('is-ready');
     window.__creekReady = true;
-    // handle for debugging and for the screenshot tool's A/B checks
-    // b17 is read from the variable, not set to null: it is the smaller file and
-    // can easily finish before this callback runs, in which case its own
-    // assignment above had nothing to attach itself to
-    window.__creek = { scene, camera, renderer, sun, sky, water, waterMat, ripples, fireflies, walker, monster: null, hunt: null, b17, wind: wind.uniforms };
+    // handle for debugging and for the screenshot tool's A/B checks. The late
+    // exposures go in last: the guests fetch smaller files and routinely land
+    // before this callback runs, and their handles have been parked for it.
+    window.__creek = {
+      scene, camera, renderer, sun, sky, water, waterMat, ripples, fireflies,
+      walker, wind: wind.uniforms, ...lateExpose,
+    };
 
-    tryCreateMonster();
+    renderCredits(modelSpecs);
+
+    // and only now are the guests that were waiting on the terrain let go
+    markCreekReady();
   },
   (evt) => {
     if (evt.total && barEl) barEl.style.width = `${Math.round((evt.loaded / evt.total) * 92)}%`;
   },
   (err) => {
     console.error('[creek] could not load assets/creek.glb', err);
+    noteError('creek.glb', err);
     loaderEl.classList.add('is-done');
     // Which hint is worth showing depends on where the page is being served
     // from. The model failing to arrive over file:// is expected and has a
@@ -455,33 +526,8 @@ gltfLoader.load(
   },
 );
 
-// The toad ships as its own GLB so that re-running the creek build can never
-// clobber it. It fetches alongside the creek and is built by whichever of the
-// two lands second. A miss is not fatal — the creek reads fine without it.
-gltfLoader.load(
-  './assets/monster.glb',
-  (gltf) => { monsterGltf = gltf; tryCreateMonster(); },
-  undefined,
-  (err) => console.warn('[creek] no toad today — the creek carries on without one', err),
-);
-
-// The aircraft does the same, and for the same reason. It needs nothing from
-// the terrain, so unlike the toad it can be built the moment it lands.
-gltfLoader.load(
-  './assets/b17.glb',
-  (gltf) => {
-    try {
-      b17 = createB17({ gltf });
-      scene.add(b17.object);
-      if (window.__creek) window.__creek.b17 = b17;
-    } catch (err) {
-      console.warn('[creek] no aircraft today — the sky carries on without one', err);
-      b17 = null;
-    }
-  },
-  undefined,
-  (err) => console.warn('[creek] no aircraft today — the sky carries on without one', err),
-);
+// The models load themselves, above, out of models/index.js — including the toad
+// and the aircraft, which are now just the first two entries in that list.
 
 // ------------------------------------------------------------- composer
 
@@ -701,11 +747,10 @@ function frame(now) {
   // ---- camera: the composed shot, or the walker once you've taken over
   if (walker) walker.update(dt, elapsed);
 
-  // ---- the toad, which is watching you back
-  if (monster) monster.update(dt, elapsed);
-  // ...and taking the occasional fly. Runs after the toad so it reads a mouth
-  // that has already been placed this frame.
-  if (hunt) hunt.update(dt);
+  // ---- the guests, in the order their specs registered. The toad is why this
+  // is a list rather than a pair of variables: it moves, and then its appetite
+  // reads the mouth it has just placed, so those two must not swap.
+  for (const update of modelUpdates) update(dt, elapsed);
 
   // the sky is a 200m sphere; keep it centred so the gradient never skews
   sky.position.copy(camera.position);

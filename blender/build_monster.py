@@ -1,6 +1,6 @@
 """
 build_monster.py -- bring the creek's toad in from Sketchfab and export it to
-assets/monster.glb for the Three.js page.
+models/toad/model.glb for the Three.js page.
 
 The download is an MCP tool call rather than plain bpy, so this runs in two
 steps. First, in the agent session (this is the part that actually fetches the
@@ -39,11 +39,13 @@ import struct
 from mathutils import Matrix, Vector
 
 PROJECT = r"C:\Users\ryanc\projects\cozy"
-ASSETS = os.path.join(PROJECT, "assets")
+# the toad is a guest: it is built into its own folder under models/, with the
+# spec and the behaviour that drive it, so everything about it lives together
+OUT_DIR = os.path.join(PROJECT, "models", "toad")
 
 # "Standing_giant_toad_green_skin_animated" by pikupila, CC BY 4.0, via Sketchfab.
 # The name promises an animation but the download carries no armature and no
-# actions, so the walk is done in three.js -- see src/monster.js.
+# actions, so the walk is done in three.js -- see models/toad/monster.js.
 ASSET_UID = "db8e45b28c9e495d8472b10f75d82847"
 SOURCE_NAME = "Object_4"           # what the importer calls the mesh
 TARGET_SIZE = 1.35                 # metres, largest dimension -- a creek monster,
@@ -180,8 +182,8 @@ def shrink_texture(mesh, size=TEXTURE_SIZE):
 
 
 def export_glb(mesh):
-    os.makedirs(ASSETS, exist_ok=True)
-    path = os.path.join(ASSETS, "monster.glb")
+    os.makedirs(OUT_DIR, exist_ok=True)
+    path = os.path.join(OUT_DIR, "model.glb")
 
     bpy.ops.object.select_all(action='DESELECT')
     mesh.select_set(True)
@@ -217,7 +219,7 @@ def export_glb(mesh):
 
 def inspect_glb(path=None):
     """Read the GLB's JSON chunk and report what actually made it into the file."""
-    path = path or os.path.join(ASSETS, "monster.glb")
+    path = path or os.path.join(OUT_DIR, "model.glb")
     with open(path, "rb") as fh:
         data = fh.read()
     magic, _ver, total = struct.unpack_from("<III", data, 0)

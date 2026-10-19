@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>A Cozy Creek</title>
 <meta name="description" content="A quiet animated creek: running water, drifting fireflies, and a lantern still burning." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230d1210'/%3E%3Cpath d='M0 19h32v13H0z' fill='%2320443f'/%3E%3Cpath d='M0 17q4-2.6 8 0t8 0 8 0 8 0v4H0z' fill='%233f756a'/%3E%3Ccircle cx='9' cy='9' r='2.2' fill='%23ffd9a0'/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://unpkg.com" />
 <style>
   :root { color-scheme: dark; }
@@ -70,13 +71,18 @@
     color: rgba(255, 236, 200, 0.95);
   }
 
-  /* CC BY wants the authors named, so here they are, quietly.
-     Fixed, so it stays out of the masthead/title flex layout. */
+  /* CC BY wants the authors named, so here they are, quietly. The text is
+     written by renderCredits() in src/main.js from the models' own specs, so a
+     new model cannot arrive unattributed. Fixed, so it stays out of the
+     masthead/title flex layout, and capped so a scene with several guests wraps
+     onto a second line instead of running off the edge. */
   .credit {
     position: fixed;
     left: clamp(1.4rem, 4vw, 3.2rem);
     bottom: clamp(1.4rem, 4vw, 3.2rem);
+    max-width: min(30rem, 48vw);
     font-size: clamp(0.56rem, 1.05vw, 0.64rem);
+    line-height: 1.9;
     letter-spacing: 0.16em;
     text-transform: uppercase;
     color: rgba(255, 248, 234, 0.28);
@@ -211,7 +217,8 @@
   <div class="overlay" id="overlay">
     <div class="masthead">Somewhere quiet</div>
     <h1 class="title">A creek, <em>still running</em>, long after everyone has gone home.</h1>
-    <p class="credit">Toad by pikupila · B-17 by Pedro B. Goulart · CC BY · via Sketchfab</p>
+    <!-- Filled in from the models' specs by renderCredits() in src/main.js -->
+    <p class="credit" id="credit"></p>
   </div>
 
   <div class="hint" id="hint">move to stir the water · drag to wander</div>

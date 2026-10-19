@@ -5,11 +5,16 @@
 # 4.8 MB creek.blend. None of it is needed to run the page, and without this it
 # would all be uploaded and publicly fetchable at /blender/creek.blend and friends.
 #
-# vercel.json has to be named explicitly. The `/*` above would otherwise take the
+# models/ is the one exception, and it is not an exception to the rule: the
+# models are the site, the same way src/ and assets/ are. A guest's folder holds
+# its spec, its behaviour and its glTF, and all three ship.
+#
+# vercel.json has to be named explicitly. The `/*` below would otherwise take the
 # config with it, and the allowlist has to follow the same shape as the ignore.
 /*
 !index.html
 !src
 !assets
+!models
 !package.json
 !vercel.json

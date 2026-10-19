@@ -10,13 +10,24 @@
  */
 
 import { spawn } from 'node:child_process';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const CHROME = process.env.CHROME ||
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+// Where Chrome lives is platform business, not something every caller should have
+// to know. CHROME still wins if it is set; otherwise take the first of the usual
+// places that exists, which is what lets the same script run on a laptop and on
+// the ubuntu runner.
+const CHROME = process.env.CHROME || [
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/usr/bin/google-chrome',
+  '/usr/bin/google-chrome-stable',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+].find((path) => existsSync(path)) || 'google-chrome';
 const URL_ = process.argv[2] || 'http://127.0.0.1:5173/';
 const OUT = process.argv[3] || 'shot.png';
 const W = Number(process.argv[4] || 1200);
@@ -48,7 +59,7 @@ let ws;
 let nextId = 1;
 const pending = new Map();
 
-function send(method, params = {}) {
+function send(method, params = {}, timeoutMs = 60000) {
   const id = nextId++;
   ws.send(JSON.stringify({ id, method, params }));
   return new Promise((res, rej) => {
@@ -58,7 +69,7 @@ function send(method, params = {}) {
         pending.delete(id);
         rej(new Error(`timeout on ${method}`));
       }
-    }, 60000);
+    }, timeoutMs);
   });
 }
 
@@ -162,7 +173,14 @@ await sleep(Number(process.env.SETTLE_MS || 4000));
 
 /** Runtime.evaluate, with the exception explained rather than just "Uncaught". */
 async function evaluate(expression, label) {
-  const r = await send('Runtime.evaluate', { expression, returnByValue: true });
+  const r = await send(
+    'Runtime.evaluate',
+    { expression, returnByValue: true },
+    // Driving the clock is the documented way to test anything slow, and a few
+    // simulated minutes is a lot of synchronous work in one call. The default
+    // one-minute cutoff would turn a slow check into a failed one.
+    Number(process.env.EVAL_TIMEOUT_MS || 300000),
+  );
   if (r.exceptionDetails) {
     const d = r.exceptionDetails;
     const desc = (d.exception && (d.exception.description || d.exception.value)) || d.text || 'unknown';
@@ -267,5 +285,34 @@ if (logs.length) {
   console.log('--- console: clean ---');
 }
 console.log('wrote', OUT);
+
+// The page's error list is read now rather than at 'ready', because the run does
+// not end at ready: a model can finish loading — and fail to place itself — during
+// the settle, and the EVAL, MOVES, DRAG and KEYS hooks all run after it. Checking
+// the count from the top of the run would miss every one of those, which is most
+// of what this tool is for.
+const errProbe = await send('Runtime.evaluate', {
+  expression: 'window.__creekErrors || []',
+  returnByValue: true,
+});
+const pageErrors = errProbe.result?.value || [];
+if (pageErrors.length) {
+  console.log(`--- page errors (${pageErrors.length}) ---`);
+  for (const e of pageErrors.slice(0, 10)) console.log('  ' + String(e).split('\n')[0]);
+} else {
+  console.log('--- page errors: none ---');
+}
+
+// Exit non-zero when the page never came up, so CI can act on it. The shots are
+// written either way — a failing run is exactly when you want to look at the
+// frame. ALLOW_ERRORS=1 is the escape hatch for when the error is the thing
+// being investigated.
+const faults = [];
+if (state !== 'ready') faults.push(`page state is "${state}"`);
+if (pageErrors.length) faults.push(`${pageErrors.length} uncaught JS error(s)`);
+if (faults.length && process.env.ALLOW_ERRORS !== '1') {
+  console.log('FAILED —', faults.join('; '));
+  cleanup(1);
+}
 
 cleanup(0);

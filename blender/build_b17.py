@@ -1,6 +1,6 @@
 """
-build_b17.py -- bring the B-17 in from Sketchfab and export it to assets/b17.glb
-for the Three.js page.
+build_b17.py -- bring the B-17 in from Sketchfab and export it to
+models/b17/model.glb for the Three.js page.
 
 Same two-step shape as build_monster.py, because the download is an MCP tool
 call rather than plain bpy. First, in the agent session:
@@ -44,7 +44,9 @@ import struct
 from mathutils import Vector
 
 PROJECT = r"C:\Users\ryanc\projects\cozy"
-ASSETS = os.path.join(PROJECT, "assets")
+# the aircraft is a guest too: its folder under models/ holds the spec, the
+# tuning that dresses it for this light, and the model itself
+OUT_DIR = os.path.join(PROJECT, "models", "b17")
 
 # "Crash of a B-17" by Pedro B. Goulart (Pebegou), CC BY 4.0, via Sketchfab.
 ASSET_UID = "2693bbf7485c4f038a31b6e3e47c62c5"
@@ -352,8 +354,8 @@ def trim_textures(meshes):
 
 
 def export_glb(meshes):
-    os.makedirs(ASSETS, exist_ok=True)
-    path = os.path.join(ASSETS, "b17.glb")
+    os.makedirs(OUT_DIR, exist_ok=True)
+    path = os.path.join(OUT_DIR, "model.glb")
 
     bpy.ops.object.select_all(action='DESELECT')
     for ob in meshes:
@@ -392,7 +394,7 @@ def export_glb(meshes):
 
 def inspect_glb(path=None):
     """Read the GLB's JSON chunk and report what actually made it into the file."""
-    path = path or os.path.join(ASSETS, "b17.glb")
+    path = path or os.path.join(OUT_DIR, "model.glb")
     with open(path, "rb") as fh:
         data = fh.read()
     magic, _ver, total = struct.unpack_from("<III", data, 0)
