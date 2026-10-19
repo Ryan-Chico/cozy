@@ -1,0 +1,9 @@
+# Blender writes a rolling auto-backup next to every .blend
+*.blend1
+
+# npm start is the documented entry point, though there are no dependencies yet
+node_modules/
+
+# Where tools/shot.mjs drops its screenshots unless you point OUT elsewhere
+shot*.png
+b.png
