@@ -14,15 +14,18 @@
  * Its longest axis is not its height. The gun reaches 7.33 m front-to-back
  * against a 5.42 m standing height, and `measure` names the gun so `size` still
  * measures the weapon's reach rather than the machine — without it the blade's
- * extra three metres would shrink the mecha from 9.6 m to about 6.7 m. At 13 m
- * the machine itself stands about 9.6 m, which is a head above the tallest tree
- * and roughly seven toads. Shrinking the spec to the height instead would put
- * it under the treeline and lose the point.
+ * extra reach would shrink the mecha from 9.6 m to about 7.6 m. At 13 m the
+ * machine itself stands about 9.6 m, which is a head above the tallest tree and
+ * roughly seven toads. Shrinking the spec to the height instead would put it
+ * under the treeline and lose the point.
  *
- * It faces three.js +Z at `face: 0`, which points the blade the same way as the
- * chest. At -80 the chest faced the camera but the blade came straight at it and
- * read as a smudge; -45 keeps a three-quarter chest while the blade sweeps
- * across the frame and the gun stays across the channel.
+ * The blade belongs to the other weapon. The machine holds the gun in one hand
+ * and a smaller sword in the other, and the red card is that sword's beam: it
+ * leaves the sword's emitter and sprays down and out past the machine's side.
+ * The build bakes the Sketchfab node's own matrix into it, so it stays on that
+ * emitter instead of floating beside the shoulder. At `face: -45` the chest
+ * stays three-quarter while the beam cuts across the near water and the gun
+ * stays across the channel.
  */
 
 const ENV_INTENSITY = 1.12;
@@ -51,13 +54,17 @@ export default {
     url: 'https://sketchfab.com/3d-models/raid-boss-shogun-8700d16e247d4a51956ef904643b95fa',
   },
 
-  // At x = 18 the channel is about 10.8 m wide and 1.4 m deep, so `grounded`
-  // puts its feet on the bed with the water at mid-shin. The camera is then
-  // 36 m away, where the opening shot's fifteen degrees of sky allow a top at
-  // roughly 11.8 m: 9.6 m of machine clears it with the treeline behind.
+  // At x = 18 the channel is about 10.8 m wide and 1.5 m deep. `grounded`
+  // anchors whatever `measure` names, and here that is the gun: at this scale
+  // the weapon hangs 1.4 m above the feet, so left alone the feet would stand
+  // 1.4 m inside the bed. The 1.5 m of `at` gives that back — feet on the bed,
+  // water line at the shins — and holds the beam's upper half above the
+  // surface, where it reads. The camera is then 36 m away, where the opening
+  // shot's fifteen degrees of sky allow a top at roughly 11.8 m: 9.6 m of
+  // machine clears it with the treeline behind.
   size: 13,
   measure: 'Gun_Sword002',   // three.js strips the space and dot from "Gun Sword.002"
-  at: [18, 0, 0],
+  at: [18, 1.5, 0],
   face: -45,
   grounded: true,
 

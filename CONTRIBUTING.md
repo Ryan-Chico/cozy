@@ -124,10 +124,10 @@ Everything except `id`, `model` and `credit` is optional.
 ### How `size` and `at` actually work
 
 `size` scales the model so its **longest axis** is that many metres, then moves
-its origin onto its own **centre** — or onto its **feet** if `grounded` — so
-`at` means the same thing for a pebble and for an airliner. Non-uniform exports
-and odd origins are handled; you are saying how big the thing is, not what scale
-factor to apply.
+its origin onto its own **centre** — or onto its **feet** if `grounded`; with
+`measure`, both refer to the named node instead. Non-uniform exports and odd
+origins are handled; you are saying how big the thing is, not what scale factor
+to apply.
 
 `grounded: true` with `at: [x, 0, z]` puts the model's lowest point exactly on
 the ground. A small `y` floats it, which is what you want for something that
@@ -153,8 +153,11 @@ size: 26,                // the wingspan, in metres
 measure: 'B17_Hull',     // ...of the airframe, not of the trailing smoke
 ```
 
-The named node is what both the size and the centre refer to. If the name is
-wrong the loader says so by name rather than silently scaling to nothing.
+The named node is what both the size and the centre refer to, `grounded`
+included — so a subject that hangs above the feet (a shouldered weapon, say)
+would sink those feet, and the spec takes the difference back in `at`. If the
+name is wrong the loader says so by name rather than silently scaling to
+nothing.
 
 Names are the ones three.js gives the nodes, not the ones in the file: spaces
 become underscores and dots disappear, so Blender's `Gun Sword.002` is

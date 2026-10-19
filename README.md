@@ -307,9 +307,9 @@ the near bank. That is the intent. It reads as a moment, not as an object.
 | Constant | Effect |
 | --- | --- |
 | `size` | The gun's 7.3 m reach, not the mecha's 5.4 m height |
-| `measure` | Names `Gun_Sword002`, so the blade reaching past the gun does not change the scale |
-| `at` | Where it stands, in three.js metres; `grounded` puts its feet on the creek bed |
-| `face` | Yaw; zero points down +Z, and -45 keeps a three-quarter chest while the blade sweeps across the frame |
+| `measure` | Names `Gun_Sword002`, so the beam reaching past the gun does not change the scale |
+| `at` | Where it stands, in three.js metres; y lifts the machine clear of the bed |
+| `face` | Yaw; zero points down +Z, and -45 keeps a three-quarter chest while the beam cuts across the near water |
 | `ENV_INTENSITY`, `COLOUR_LIFT` | How much sky the armour takes, and how far the rust sits off black |
 | `GLOW_BOOST`, `BLADE_GLOW` | How hard the vents, the sensors and the blade glow |
 | `BLADE_COLOUR`, `BLADE_OPACITY` | The beam's tint and card opacity |
@@ -318,10 +318,12 @@ the near bank. That is the intent. It reads as a moment, not as an object.
 The trap is that `size` measures the gun. The machine stands 5.42 m at the asset's
 own scale against a 7.33 m reach, so a spec that looks "too big" is usually just
 describing the weapon. `measure` names the gun — three.js has already stripped the
-space and the dot from Blender's `Gun Sword.002` — so the red blade, which reaches
-about three metres further forward, does not shrink the mecha with it. At 13 it is
-a 9.6 m machine: a head above the treeline, a shin in the water, and well inside
-the opening frame.
+space and the dot from Blender's `Gun Sword.002` — so the red beam, which the
+machine's other sword sprays out past it, does not shrink the mecha with it.
+`grounded` then anchors that named gun on the bed, and since the weapon hangs
+1.4 m above the feet at this scale, `at` carries 1.5 m to land the feet on the bed
+and keep the waterline at the shins. At 13 it is a 9.6 m machine: a head above
+the treeline, a shin in the water, and well inside the opening frame.
 
 **The breeze** — `src/wind.js`
 

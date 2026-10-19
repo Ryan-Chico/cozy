@@ -330,6 +330,17 @@ def run():
         if hull is not None:
             hull.name = HULL_NAME
 
+        # the Sketchfab hierarchy puts the beam mesh under an empty that shares
+        # its glTF name, so on a clean import the mesh lands as `Blade.001`.
+        # Both the spec and the README address the node as `Blade`, so take the
+        # name from the material it carries rather than from the wrapper.
+        for ob in root.children_recursive:
+            if ob.type == 'MESH' and any(
+                m is not None and m.name.startswith("Blade") for m in ob.data.materials
+            ):
+                ob.name = "Blade"
+                ob.data.name = "Blade"
+
         # collect before flattening: clearing the parents empties the hierarchy
         meshes = bake_and_flatten(root)
         ground(meshes)
