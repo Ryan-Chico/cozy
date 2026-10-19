@@ -24,6 +24,7 @@ import { RippleSim } from './ripples.js';
 import { createWalker } from './controls.js';
 import { createMonster } from './monster.js';
 import { createHunt } from './hunt.js';
+import { createB17 } from './b17.js';
 import { buildHeightSampler } from './heightmap.js';
 import { bakeSway, createWind, SWAY_TYPES } from './wind.js';
 
@@ -139,6 +140,7 @@ let terrain = null;       // the mesh the walker stands on
 let monster = null;       // the toad in the shallows
 let monsterGltf = null;   // its own download, arrives when it arrives
 let hunt = null;          // its appetite
+let b17 = null;           // the aircraft hanging over the creek
 let ready = false;
 
 // the breeze, and the mask that makes foliage bend from its roots rather than
@@ -425,7 +427,10 @@ gltfLoader.load(
     overlayEl.classList.add('is-ready');
     window.__creekReady = true;
     // handle for debugging and for the screenshot tool's A/B checks
-    window.__creek = { scene, camera, renderer, sun, sky, water, waterMat, ripples, fireflies, walker, monster: null, wind: wind.uniforms };
+    // b17 is read from the variable, not set to null: it is the smaller file and
+    // can easily finish before this callback runs, in which case its own
+    // assignment above had nothing to attach itself to
+    window.__creek = { scene, camera, renderer, sun, sky, water, waterMat, ripples, fireflies, walker, monster: null, hunt: null, b17, wind: wind.uniforms };
 
     tryCreateMonster();
   },
@@ -447,6 +452,24 @@ gltfLoader.load(
   (gltf) => { monsterGltf = gltf; tryCreateMonster(); },
   undefined,
   (err) => console.warn('[creek] no toad today — the creek carries on without one', err),
+);
+
+// The aircraft does the same, and for the same reason. It needs nothing from
+// the terrain, so unlike the toad it can be built the moment it lands.
+gltfLoader.load(
+  './assets/b17.glb',
+  (gltf) => {
+    try {
+      b17 = createB17({ gltf });
+      scene.add(b17.object);
+      if (window.__creek) window.__creek.b17 = b17;
+    } catch (err) {
+      console.warn('[creek] no aircraft today — the sky carries on without one', err);
+      b17 = null;
+    }
+  },
+  undefined,
+  (err) => console.warn('[creek] no aircraft today — the sky carries on without one', err),
 );
 
 // ------------------------------------------------------------- composer

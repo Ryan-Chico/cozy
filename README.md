@@ -2,8 +2,9 @@
 
 A full-viewport animated creek. The bank, water bed, rocks, log, reeds, trees,
 mushrooms and lanterns are a procedural Blender build exported to `assets/creek.glb`.
-A toad came in from Sketchfab as `assets/monster.glb`. The water, fireflies and
-sky are Three.js shaders. No build step, no bundler.
+A toad came in from Sketchfab as `assets/monster.glb`, and a B-17 as
+`assets/b17.glb`. The water, fireflies and sky are Three.js shaders. No build
+step, no bundler.
 
 ## Run it
 
@@ -39,6 +40,10 @@ and it stops and turns to face you; crowd it and it hops off down the creek.
 It also eats. Stand and watch for a few seconds and it will pick a firefly out of
 the air: it stops, swings its head onto the fly, holds for a beat, then throws its
 tongue at it and hauls it in. It comes up short about a fifth of the time.
+
+High over the far end of the creek a B-17 is going down: wings alight, smoke
+trailing, tracer fire falling away below it. It is a long way off and the haze
+has most of it. Nothing about it moves — it is a held moment, not an animation.
 
 | Action | How |
 | --- | --- |
@@ -114,12 +119,15 @@ The camera constants in `src/main.js` are the Blender ones after that swap.
 | `src/ripples.js` | Ping-pong damped wave field for the pointer rings |
 | `src/fireflies.js` | One `Points` draw call; wander, blink, pointer attraction |
 | `src/hunt.js` | The toad's appetite: which firefly, and when one is worth a try |
+| `src/b17.js` | The aircraft: where it hangs, how it is turned, and its material fixes |
 | `src/sky.js` | Gradient sky, sun glow, and the baked environment map |
 | `server.mjs` | Zero-dependency static server (`npm start`) |
 | `assets/creek.glb` | The exported model — ~193k tris, 5.9 MB |
 | `assets/monster.glb` | The toad — 50k tris, 1.4 MB, imported from Sketchfab |
+| `assets/b17.glb` | The aircraft — 104k tris, 4.1 MB, imported from Sketchfab |
 | `blender/build_creek.py` | The whole procedural build |
 | `blender/build_monster.py` | Cleans up the imported toad and exports it |
+| `blender/build_b17.py` | Cleans up the imported aircraft and exports it |
 | `blender/creek.blend` | Saved Blender scene |
 | `tools/shot.mjs` | Headless-Chrome screenshot checker |
 
@@ -206,6 +214,25 @@ rather than teleporting; without the pause and the head-turn, the tongue simply
 appears. The tongue itself is the scene's one extra draw call — a twelve-triangle
 tapered spike, driven in world space, casting no shadow.
 
+**The aircraft** — `src/b17.js`
+
+| Constant | Effect |
+| --- | --- |
+| `POSITION` | Where it hangs over the creek, in three.js metres |
+| `YAW_DEG`, `PITCH_DEG`, `ROLL_DEG` | How it is aimed. The dive attitude is baked into the sculpt |
+| `ENV_INTENSITY`, `COLOUR_LIFT` | How much sky it picks up, and how far off black the airframe sits |
+| `EMISSIVE_BOOST` | How hard the burning wing roots glow |
+| `TARGET_SIZE` | The whole tableau's largest dimension, in `blender/build_b17.py` |
+
+`POSITION` is more constrained than it looks. The opening camera sits at eye
+height with a 36° vertical field of view, so only about fifteen degrees of sky
+are in frame above the horizon: "high in the sky" is much lower than it sounds,
+and the aircraft has to be well down the creek to be up in that band at all.
+Raise `Y` and it leaves the top of the frame; bring it nearer and it drops behind
+the treeline. The haze does the rest — at that distance `FogExp2` has already
+blended it roughly seven tenths of the way into the warm sky, which is why it
+reads as far away rather than as a model on a backdrop.
+
 
 **The breeze** — `src/wind.js`
 
@@ -278,6 +305,33 @@ The toad walks the waterline from `x = -27` to `x = -3.5`. That stretch stops
 short of the fallen log at `x ≈ 0` and the stepping stones at `x ≈ 4`, neither of
 which it can climb. Widen `PATH_X0` / `PATH_X1` and it will try to walk through
 them.
+
+### The aircraft
+
+Same shape as the toad, and for the same reason — kept out of `creek.glb` so
+`build_all()` can never clobber it:
+
+```python
+# first, from the agent session -- this is the part that downloads:
+#   import_asset(source="sketchfab", id="2693bbf7485c4f038a31b6e3e47c62c5",
+#                target_size=30)
+exec(open(r"...\blender\build_b17.py").read())
+run()     # bakes, recentres, corrects the material, trims textures, writes assets/b17.glb
+```
+
+`run()` is idempotent. Two details matter before touching it. It deletes only the
+empties above *its own* meshes, because the toad's import also arrived under a
+wrapper called `Sketchfab_model`. And it normalises the whole tableau rather than
+the aircraft, so the tracer fire stays in proportion.
+
+The material arrives fully metallic and renders near black under this dusk, so
+`run()` cuts the `Metallic` link and writes the factor to zero, leaving the
+roughness map in place. The opaque textures are re-encoded to JPEG by writing them
+out through disk and loading them back: the exporter's `AUTO` mode reads the packed
+bytes, so setting `image.file_format` alone ships them as PNG regardless.
+
+The asset is a posed sculpt — no armature, no actions. Nothing in it moves, and
+nothing in `src/b17.js` moves it either.
 
 ## Checking it
 
@@ -355,4 +409,9 @@ sequence seconds, not milliseconds, to see its effect.
   [Sketchfab](https://sketchfab.com/3d-models/db8e45b28c9e495d8472b10f75d82847).
   The credit is also shown quietly in the corner of the page, which is what the
   licence asks for.
+- **B-17** — "Crash of a B-17" by
+  [Pedro B. Goulart](https://sketchfab.com/Pebegou), licensed
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via
+  [Sketchfab](https://sketchfab.com/3d-models/crash-of-a-b-17-2693bbf7485c4f038a31b6e3e47c62c5).
+  Credited in the page corner alongside the toad.
 - Everything else — geometry, shaders, motion — is built here.
