@@ -16,15 +16,17 @@ Then, inside Blender:
     run()
 
 What run() does:
-  - drops the baked-in slash card and the two smoke puffs. They are frozen VFX
-    from the author's render, not parts of the machine, and they widen the
-    model's bounding box enough to change what `size` means.
+  - drops the two smoke puffs. They are frozen VFX from the author's render, not
+    parts of the machine, and their cards widen the bounding box enough to
+    change what `size` means. The red blade is kept: it is the weapon's beam,
+    not smoke, and its white alpha card is baked to a grayscale emissive map
+    because the rest of the export is JPEG.
   - bakes the Sketchfab wrapper transforms into the meshes and deletes the
     `Sketchfab_model` / `Root` / part empties they came in with
   - puts the feet on z = 0
   - fixes the materials: the pipes arrived black at metallic 1.0 (the toad and
-    the B-17 both needed this), and every map was flagged alpha-blended although
-    none of them carry alpha
+    the B-17 both needed this), and every other map was flagged alpha-blended
+    although none of them carry alpha
   - decimates the two heavy meshes and drops the base-colour maps to 1024, so
     the guest fits the 5 MB per-model budget
   - exports a JPEG-compressed GLB
@@ -48,8 +50,10 @@ ASSET_UID = "8700d16e247d4a51956ef904643b95fa"
 HULL_SOURCE_NAME = "Shougun_Gundam.002"    # the author's spelling
 HULL_NAME = "Shogun_Hull"
 
-# the slash card and the smoke puffs, with the empties that hold them
-VFX_NAMES = ("Blade", "Smoke0324_S.001", "Smoke0330_S.001")
+# the two smoke puffs, with the empties that hold them. The blade stays: it is
+# the weapon's red beam, and prepare_blade() turns its alpha card into an
+# emissive map the JPEG export can carry.
+VFX_NAMES = ("Smoke0324_S.001", "Smoke0330_S.001")
 
 # only the two meshes that carry the triangles: 97k + 43k of the 167k total
 DECIMATE = {
@@ -79,6 +83,7 @@ def find_root():
 FLAT_NAMES = (
     "Shogun_Hull", "Gun Sword.001", "Gun Sword.002", "Pipes.001",
     "Shougun_Gundam.001", "Shougun_Gundam.003", "Shougun_Gundam.004",
+    "Blade",
 )
 SHOGUN_PREFIXES = ("Shougun_Gundam", "Shogun_Hull", "Gun Sword", "Pipes")
 
@@ -156,10 +161,71 @@ def ground(meshes):
     print("feet moved from z=%.3f to 0" % lowest)
 
 
+def prepare_blade(mat):
+    """Bake the blade's white alpha card into a grayscale emissive map.
+
+    The beam's shape lives entirely in the alpha channel of a 128 px white
+    texture. JPEG cannot carry that alpha, and every other map in this export
+    wants to stay JPEG, so the mask is baked to white-on-black and the material
+    is rebuilt as an opaque emissive card. three.js tints it red and adds it
+    over the scene, which is what the original alpha blend was doing. Safe to
+    run twice: the custom property marks the material as done.
+    """
+    if mat.get("creek_blade_prepared"):
+        return
+
+    image_node = next(
+        (n for n in mat.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image),
+        None,
+    )
+    if image_node is None:
+        return
+    src = image_node.image
+    w, h = src.size
+    src_px = list(src.pixels)
+
+    mask = bpy.data.images.new("Blade_mask", width=w, height=h, alpha=False)
+    mask.colorspace_settings.name = 'sRGB'
+    px = [0.0] * (w * h * 4)
+    for i in range(w * h):
+        a = src_px[i * 4 + 3]
+        px[i * 4 + 0] = a
+        px[i * 4 + 1] = a
+        px[i * 4 + 2] = a
+        px[i * 4 + 3] = 1.0
+    mask.pixels = px
+    mask.file_format = 'JPEG'
+    mask.pack()
+
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    nodes.clear()
+    out_node = nodes.new('ShaderNodeOutputMaterial')
+    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+    tex = nodes.new('ShaderNodeTexImage')
+    tex.image = mask
+    mat.node_tree.links.new(bsdf.outputs['BSDF'], out_node.inputs['Surface'])
+    mat.node_tree.links.new(tex.outputs['Color'], bsdf.inputs['Emission Color'])
+    bsdf.inputs['Base Color'].default_value = (0.0, 0.0, 0.0, 1.0)
+    bsdf.inputs['Metallic'].default_value = 0.0
+    bsdf.inputs['Roughness'].default_value = 1.0
+    bsdf.inputs['Alpha'].default_value = 1.0
+    bsdf.inputs['Emission Strength'].default_value = 1.0
+    mat.blend_method = 'OPAQUE'
+    mat.use_backface_culling = False
+    mat["creek_blade_prepared"] = True
+    print("blade mask baked %dx%d" % (w, h))
+
+
 def fix_materials(meshes):
     mats = {m for ob in meshes for m in ob.data.materials if m is not None}
     for mat in mats:
         if not mat.use_nodes:
+            continue
+        if mat.name == "Blade":
+            # not an opaque surface: keep its card double-sided and let the
+            # emissive map carry the shape
+            prepare_blade(mat)
             continue
         mat.blend_method = 'OPAQUE'
         # closed hard-surface parts are single-sided; the glow shells may be

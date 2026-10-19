@@ -156,6 +156,10 @@ measure: 'B17_Hull',     // ...of the airframe, not of the trailing smoke
 The named node is what both the size and the centre refer to. If the name is
 wrong the loader says so by name rather than silently scaling to nothing.
 
+Names are the ones three.js gives the nodes, not the ones in the file: spaces
+become underscores and dots disappear, so Blender's `Gun Sword.002` is
+`Gun_Sword002` at load.
+
 ## Making it do something
 
 Most guests stand still, and the declarative spec above is all they need.
