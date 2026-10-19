@@ -15,6 +15,14 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+// The DevTools client is the platform's own WebSocket. Node 20 has one, but only
+// behind --experimental-websocket; 22 exposes it by default. Fail in a sentence
+// rather than with a bare ReferenceError halfway into the run.
+if (typeof WebSocket === 'undefined') {
+  console.error(`tools/shot.mjs needs Node 22 or newer (this is ${process.version}).`);
+  process.exit(1);
+}
+
 // Where Chrome lives is platform business, not something every caller should have
 // to know. CHROME still wins if it is set; otherwise take the first of the usual
 // places that exists, which is what lets the same script run on a laptop and on

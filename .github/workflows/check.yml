@@ -32,7 +32,9 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # shot.mjs drives Chrome over the DevTools WebSocket. Node 20 only
+          # exposes WebSocket behind --experimental-websocket, so 22 is the floor.
+          node-version: 24
 
       # no dependencies to install: that is the point of the project
       - name: Model budget
@@ -54,8 +56,9 @@ jobs:
       - name: Screenshot
         env:
           CHROME: /usr/bin/google-chrome
-          # the models are ~5 MB and this machine has no cache; give the page
-          # time to settle before the shutter
+          # the models are ~9 MB and this machine has no cache; give the page
+          # time to load and then time to settle before the shutter
+          WAIT_MS: 240000
           SETTLE_MS: 26000
         run: node tools/shot.mjs http://127.0.0.1:5173/ shot.png 1600 900
 
