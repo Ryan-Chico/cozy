@@ -56,7 +56,7 @@ jobs:
       - name: Screenshot
         env:
           CHROME: /usr/bin/google-chrome
-          # the models are ~9 MB and this machine has no cache; give the page
+          # the models are ~12 MB and this machine has no cache; give the page
           # time to load and then time to settle before the shutter
           WAIT_MS: 240000
           SETTLE_MS: 26000

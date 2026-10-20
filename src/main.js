@@ -233,7 +233,7 @@ function addSurfaceDetail(material) {
 /**
  * The credit line, built from the specs rather than written into the page.
  *
- * Both bundled models are CC BY, which obliges anyone showing them to name the
+ * The bundled models are CC BY, which obliges anyone showing them to name the
  * author. Taking the line from the same object that adds the model to the scene
  * means the attribution cannot drift away from the thing it describes, and a
  * contribution that forgets it is loud in the console rather than quietly

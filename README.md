@@ -6,8 +6,10 @@ The water, fireflies and sky are Three.js shaders. No build step, no bundler.
 
 Everything that is not the creek itself is a **guest**: a model with a folder under
 `models/`, a spec saying how big it is and where it stands, and one line in a
-manifest. Three came with the place — a toad from Sketchfab, a B-17 overhead and a
-mecha in the shallows — and [CONTRIBUTING.md](CONTRIBUTING.md) is how you add a fourth.
+manifest. Four came with the place — a toad from Sketchfab, a B-17 overhead, a
+mecha in the shallows and something colossal at the head of the creek that only
+turning around will show you — and [CONTRIBUTING.md](CONTRIBUTING.md) is how you
+add a fifth.
 
 ## Run it
 
@@ -54,6 +56,12 @@ Further up the creek a raid boss has waded into the shallows and stopped: nine
 metres of rusted armour, its gun laid across the channel and its vents still lit.
 It does not move either. After the aircraft's noise, it is the silence that makes
 it strange.
+
+And behind you, past the upstream end of the creek and further than you are
+allowed to walk, an angel has been standing in the haze the whole time. The
+opening shot cannot see it; turning around is the whole reveal. It is 80 m to
+the wing tips, its pedestal is cut off by the bank at the end of the creek, and
+the scales in its hand and the spread of its wings need a look up.
 
 | Action | How |
 | --- | --- |
@@ -174,12 +182,15 @@ The camera constants in `src/main.js` are the Blender ones after that swap.
 | `models/b17/model.glb` | The aircraft — 104k tris, 4.1 MB, imported from Sketchfab |
 | `models/shogun/index.js` | The mecha's spec: size, placement and the material lift |
 | `models/shogun/model.glb` | The mecha — 103k tris, 3.8 MB, imported from Sketchfab |
+| `models/angel/index.js` | The statue's spec: size, reveal placement, material lift and its own fog depth |
+| `models/angel/model.glb` | The statue — 34k tris, 2.9 MB, imported from Sketchfab |
 | `server.mjs` | Zero-dependency static server (`npm start`) |
 | `assets/creek.glb` | The exported world — ~193k tris, 5.9 MB |
 | `blender/build_creek.py` | The whole procedural build |
 | `blender/build_monster.py` | Cleans up the imported toad and exports it |
 | `blender/build_b17.py` | Cleans up the imported aircraft and exports it |
 | `blender/build_shogun.py` | Strips the smoke cards, bakes the blade's alpha, fixes materials and exports it |
+| `blender/build_angel.py` | Flattens, grounds, trims the dead UV layers and exports the statue |
 | `blender/creek.blend` | Saved Blender scene |
 | `tools/shot.mjs` | Headless-Chrome screenshot checker; exits non-zero on page errors |
 | `tools/model-budget.mjs` | Prints each model's size and triangles, and fails over budget |
@@ -337,6 +348,33 @@ spray reads instead of drowning at the surface. At 13 it is a 9.6 m machine: a
 head above the treeline, ankle-deep in the water, and well inside the opening
 frame.
 
+**The angel** — `models/angel/index.js`
+
+| Constant | Effect |
+| --- | --- |
+| `size` | 80 m, the asset's longest axis — the wing tips; the crown is at 68 m |
+| `at` | 68 m behind the opening camera, up the valley. y is the model's centre, so 32 puts its feet 8 m under the waterline, where the upstream bank's sightline cuts the pedestal off instead of leaving it hanging in the haze |
+| `face` | -90: the statue faces up-valley, so turning around shows its back and the back of its wings |
+| `ENV_INTENSITY`, `COLOUR_LIFT` | How the shadow side reads — the whole visible face is turned away from the sun |
+| `FOG_SCALE` | The statue's own fog depth, 22% of the scene's, patched into the material's fragment shader |
+| `TARGET_HEIGHT`, `TEXTURES` | The build's normalisation and texture cuts, in `blender/build_angel.py` |
+
+The placement is the whole idea. The opening shot looks down the creek; the
+statue is directly behind the camera, and nothing in the first frame hints at
+it. Turn around and it is there: a pedestal cut off by the bank at the end of
+the creek, legs the height of the treeline, and a winged figure looking away up
+the valley. Walk to the upstream bound, `x = -30`, and it is still 56 m further
+on — close enough to see the drapery, far enough that it never resolves
+completely.
+
+Two things are tuned rather than left to the scene. The fog is the first: at
+68 m the exponential haze is 64% of the final pixel, which turns an 80 m statue
+into a cloud, so the statue's materials evaluate the same FogExp2 maths with the
+distance scaled to 22% — a trace of the veil survives, and so does the
+silhouette. The second is the shadow: `castShadow` is off because a shadow from
+80 m of statue lands about 200 m up-sun, past the terrain entirely, and the
+shadow camera only covers the creek. All it would buy is a depth pass.
+
 **The breeze** — `src/wind.js`
 
 | Constant | Effect |
@@ -447,6 +485,30 @@ loading them back: the exporter's `AUTO` mode reads the packed bytes, so setting
 
 The asset is a posed sculpt — no armature, no actions. Nothing in it moves, and
 nothing in `models/b17/index.js` moves it either.
+
+### The angel
+
+Same shape again, and kept out of `creek.glb` for the same reason. The statue is
+the one guest that is also saved back into `creek.blend`, where it is left
+standing east of the terrain at `x = 80`:
+
+```python
+# first, from the agent session -- this is the part that downloads:
+#   import_asset(source="sketchfab", id="0c6ea584860a42a2aa25015a86dab881",
+#                target_size=10)
+exec(open(r"...\blender\build_angel.py").read())
+run(save=True)   # writes models/angel/model.glb and saves blender/creek.blend
+```
+
+`run()` is idempotent: it finds the two meshes by the `Statue` and `Wings`
+materials rather than by the importer's generic names, and a custom property
+stops the 90-degree turn from being applied twice. The form of the turn is worth
+knowing. The statue arrives facing Blender `-X`; `face_minus_y()` rotates it
++90 degrees about Z so it follows the same convention as the other guests, and
+`face: -90` in the spec then aims that front at three.js `-X`. The original
+Sketchfab export also carries five UV layouts on the body and four on the wings;
+the texture nodes read four and one respectively, so the rest are dropped —
+each one otherwise becomes another TEXCOORD set in the GLB.
 
 ## Checking it
 
@@ -563,13 +625,13 @@ settings filled in by hand:
 
 `.vercelignore` is an allowlist: ignore the root, then let `index.html`, `src/`,
 `assets/`, `models/`, `package.json` and `vercel.json` back in. Without it, the
-Blender sources, the export scripts, `tools/shot.mjs` and a 4.8 MB `creek.blend`
+Blender sources, the export scripts, `tools/shot.mjs` and a 15.8 MB `creek.blend`
 would all be uploaded and publicly fetchable at `/blender/creek.blend` and
 friends. `vercel.json` has to be named in the allowlist — the `/*` below would
 otherwise take the config with it.
 
-`vercel.json` also puts a cache header on `/assets/` and `/models/`, where 11.3 of
-the page's 11.7 MB lives. Vercel's default for a file it cannot content-hash is
+`vercel.json` also puts a cache header on `/assets/` and `/models/`, where 18.0 of
+the page's 18.4 MB lives. Vercel's default for a file it cannot content-hash is
 `max-age=0, must-revalidate`, which costs a conditional request per model on every
 visit; the rule gives them a day of freshness and a week of
 `stale-while-revalidate`. `src/` is deliberately left on the default. The code
@@ -606,6 +668,11 @@ author's name attached to it. These are the long-form versions, with links.
   [zeroswat](https://sketchfab.com/zeroswat), licensed
   [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via
   [Sketchfab](https://sketchfab.com/3d-models/raid-boss-shogun-8700d16e247d4a51956ef904643b95fa).
-  Credited in the page corner alongside the other two.
+  Credited in the page corner alongside the others.
+- **Angel of Justice** — "Angel of Justice" by
+  [João Lacerda (panc0)](https://sketchfab.com/panc0), licensed
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), via
+  [Sketchfab](https://sketchfab.com/3d-models/angel-of-justice-0c6ea584860a42a2aa25015a86dab881).
+  The largest guest by far, and the only one behind you.
 - Everything else — geometry, shaders, motion — is built here, and is MIT
   licensed. See [LICENSE](LICENSE); the models keep their own terms.

@@ -25,14 +25,14 @@ import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Measured against what is already here rather than picked out of the air: the
-// B-17 is 4.05 MB and 104k triangles, the toad 1.35 MB and 50k, and the two
-// together are 5.4 MB — about the same as assets/creek.glb. So a guest may be as
-// large as the largest guest already in the scene, and the whole guest list may
-// grow to roughly twice what it is now. Both are meant to be argued with; the
-// point is that the argument happens in a pull request, with the numbers printed,
-// rather than in the page's load time.
+// B-17 is 4.05 MB and 104k triangles, the toad 1.35 MB and 50k, the shogun
+// 3.8 MB and 103k, and the angel 2.9 MB and 34k — 12.1 MB and 291k triangles
+// together. So a guest may be as large as the largest guest already in the
+// scene, and the whole guest list has room for a fifth before it is full. Both
+// are meant to be argued with; the point is that the argument happens in a pull
+// request, with the numbers printed, rather than in the page's load time.
 const MAX_MODEL_BYTES = 5 * 1024 * 1024;      // one guest
-const MAX_TOTAL_BYTES = 10 * 1024 * 1024;     // all of them together
+const MAX_TOTAL_BYTES = 16 * 1024 * 1024;     // all of them together
 const MAX_MODEL_TRIS = 250_000;               // one guest
 const MAX_TOTAL_TRIS = 500_000;               // all of them together
 

@@ -222,7 +222,7 @@ and leave the flag off.
 
 ## Rights and attribution
 
-**Every guest needs a `credit.by`.** This is not a formality: all three built-in
+**Every guest needs a `credit.by`.** This is not a formality: all four built-in
 models are CC BY, which obliges anyone showing them to name the author, and the
 credit line in the page corner is generated from these blocks. A spec without
 one is a console warning *and* a failed check — shipping someone's model without
@@ -250,7 +250,7 @@ The code is MIT (see `LICENSE`). That does not cover the models.
 The whole scene downloads before it shows you anything, so every model is paid
 for by everyone on every first visit. `npm run check` prints the running total
 and fails if a guest goes over 5 MB or 250k triangles, or the guests together go
-over 10 MB or 500k.
+over 16 MB or 500k.
 
 Those numbers are the current scene's own measurements, not laws. If you need
 more, say why and raise them in the same commit. What is not negotiable is the

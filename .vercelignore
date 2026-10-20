@@ -2,7 +2,7 @@
 #
 # Everything else in this repo is development material -- the Blender sources and
 # their export scripts, the local server, the screenshot tool, the README, and a
-# 4.8 MB creek.blend. None of it is needed to run the page, and without this it
+# 15.8 MB creek.blend. None of it is needed to run the page, and without this it
 # would all be uploaded and publicly fetchable at /blender/creek.blend and friends.
 #
 # models/ is the one exception, and it is not an exception to the rule: the
