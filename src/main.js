@@ -442,9 +442,9 @@ gltfLoader.load(
       camera,
       hero: { pos: CAM_POS, target: CAM_TARGET },
       bounds: WALK_BOUNDS,
-      // Blender's WATER_Z is 0, so this is "the water surface minus a few cm of
-      // wading". The banks rise from exactly 0 at the waterline, so anything
-      // above 0 here would wall you off the moment you set foot on the shore.
+      // Blender's WATER_Z is 0, so this is "the water surface minus a few cm".
+      // It is the line the bed has to fall under before the feet count as wet,
+      // and the eye never sinks below it plus WADE_EYE.
       waterY: -0.05,
       reducedMotion: REDUCED_MOTION,
       onEngage: () => {
@@ -456,7 +456,7 @@ gltfLoader.load(
         hintEl.classList.add('is-hidden');
         roamHintEl.textContent = walker?.usingStick
           ? 'drag to look · stick to wander · double-tap to go home'
-          : 'drag to look · wasd to wander · r to return home';
+          : 'drag to look · wasd to wander · space to jump · f to fly · r to return home';
         roamHintEl.classList.add('is-on');
         clearTimeout(roamFadeTimer);
         roamHintEl.classList.remove('is-faded');
@@ -469,6 +469,7 @@ gltfLoader.load(
         clearTimeout(roamFadeTimer);
       },
       onClick: (x, y) => dropStone(x, y, 0.42),
+      onWade: (x, z, strength) => ripples.drop(x, z, strength),
     });
     walker.attachTerrain(terrain);
 

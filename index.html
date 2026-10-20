@@ -124,6 +124,15 @@
   .roam-hint.is-on { opacity: 1; transition: opacity 1.2s ease 0.5s; }
   .roam-hint.is-faded { opacity: 0.24; transition: opacity 2.4s ease; }
 
+  /* keep the line clear of the touch stick and the jump / fly buttons */
+  body.is-touch .roam-hint {
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 190px);
+    max-width: calc(100% - 40px);
+    white-space: normal;
+    line-height: 1.7;
+    text-align: center;
+  }
+
   /* ---------- touch stick ---------- */
 
   #pad {
@@ -152,6 +161,55 @@
   }
   body.is-touch.is-free #pad { display: block; }
   body.is-touch #scene { cursor: default; }
+
+  /* ---------- touch jump / fly ---------- */
+
+  #jump, #fly, #down {
+    position: fixed;
+    right: max(18px, env(safe-area-inset-right));
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 244, 228, 0.22);
+    background: rgba(10, 18, 14, 0.32);
+    color: rgba(255, 244, 228, 0.72);
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    letter-spacing: 0.08em;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    z-index: 6;
+  }
+
+  #jump {
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: 84px;
+    height: 84px;
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  #fly {
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 96px);
+    width: 60px;
+    height: 60px;
+    font-size: 0.68rem;
+  }
+
+  #down {
+    right: calc(max(18px, env(safe-area-inset-right)) + 96px);
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: 60px;
+    height: 60px;
+    font-size: 1.4rem;
+    line-height: 1;
+  }
+
+  body.is-touch.is-free #jump,
+  body.is-touch.is-free #fly { display: flex; }
+  body.is-touch.is-free.is-flying #down { display: flex; }
 
   /* ---------- loader ---------- */
 
@@ -222,9 +280,13 @@
   </div>
 
   <div class="hint" id="hint">move to stir the water · drag to wander</div>
-  <div class="roam-hint" id="roamHint">drag to look · wasd to wander · r to return home</div>
+  <div class="roam-hint" id="roamHint">drag to look · wasd to wander · space to jump · f to fly · r to return home</div>
 
   <div id="pad" aria-hidden="true"><div id="knob"></div></div>
+
+  <button id="jump" type="button" tabindex="-1" aria-label="Jump or climb">↑</button>
+  <button id="fly" type="button" tabindex="-1" aria-label="Toggle flight">FLY</button>
+  <button id="down" type="button" tabindex="-1" aria-label="Descend">↓</button>
 
   <div id="loader">
     <div class="word">Finding the creek</div>

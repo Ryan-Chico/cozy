@@ -254,6 +254,7 @@ if (process.env.DRAG) {
 const KEY_CODES = {
   KeyW: ['w', 87], KeyA: ['a', 65], KeyS: ['s', 83], KeyD: ['d', 68],
   KeyR: ['r', 82], ShiftLeft: ['Shift', 16],
+  Space: [' ', 32], KeyF: ['f', 70],
 };
 if (process.env.KEYS) {
   for (const item of process.env.KEYS.split(',')) {

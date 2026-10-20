@@ -30,7 +30,8 @@ stepping stones, a fallen log, fireflies drifting over the water. Dusk, warm and
 hazy.
 
 It opens on a composed shot. Move and you take the camera over: walk the banks,
-or just stand and watch. `R` glides you back to where you started.
+wade the creek or fly over it, or just stand and watch. `R` glides you back to
+where you started.
 
 There is a breeze. It is not decoration — it travels in gusts down the creek,
 swelling and easing, and every blade, frond and canopy in the scene bends from
@@ -59,17 +60,21 @@ it strange.
 | Look around | drag — the world follows your hand, as on a map |
 | Walk | `W` `A` `S` `D` or the arrow keys |
 | Walk faster | hold `Shift` |
+| Jump | `Space` |
+| Fly | `F` toggles; `Space` climbs, `Shift` descends, `W A S D` steers |
 | Return to the opening shot | `R`, or `Esc` |
 | Stir the water | move the pointer across it — no clicking needed |
 | Drop a stone | click, or tap |
+| Jump and fly (touch) | the ↑, FLY and ↓ buttons, once you're roaming |
 | Walk back home (touch) | double tap |
 
-You're held at eye height on the terrain, and the creek is a wall rather than a
-floor: you can walk down to the edge but never in. `prefers-reduced-motion`
+You're held at eye height on the terrain; deep water is a floor, not a wall.
+Wade in and the pace drops; where the bed falls away the eye settles just above
+the surface, so the creek can be crossed on foot. `prefers-reduced-motion`
 quietly drops the idle drift.
 
 One honest gap: only the ground and the water are solid. Trees, bushes and
-boulders have no collision, so you can walk through them.
+boulders have no collision, so you can walk — or fly — through them.
 
 ## Adding your own model
 
@@ -151,7 +156,7 @@ The camera constants in `src/main.js` are the Blender ones after that swap.
 | --- | --- |
 | `index.html` | Canvas, overlay type, loader, import map |
 | `src/main.js` | Scene assembly, lighting, camera, input, render loop |
-| `src/controls.js` | The camera rig: composed shot, walking, ground sampling |
+| `src/controls.js` | The camera rig: composed shot, walking, wading, flight |
 | `src/models.js` | The loader: fit, place, `setup(ctx)`, and error isolation |
 | `src/errors.js` | The page's own error record, which `shot.mjs` and CI read |
 | `src/heightmap.js` | Bilinear height sampler, shared by the walker, the wind and the guests |
@@ -214,7 +219,7 @@ Nearly everything worth changing is a named constant at the top of a file.
 
 **Fireflies** — `src/fireflies.js`: `count`, `uSize`, `uIntensity`, `uColorA/B`.
 
-**Walking** — `src/controls.js`
+**Walking, wading and flying** — `src/controls.js`
 
 | Constant | Effect |
 | --- | --- |
@@ -223,9 +228,14 @@ Nearly everything worth changing is a named constant at the top of a file.
 | `BOB_HEIGHT` | Head bob at walking pace, ramped by how fast you're actually moving |
 | `LOOK_SENS` | Radians of turn per pixel dragged |
 | `PITCH_LIMIT` | How far up and down you can look |
+| `GRAVITY`, `JUMP_SPEED`, `FALL_SPEED` | Jump weight, take-off speed and terminal velocity |
+| `AIR_ACCEL` | How much steering a jump keeps |
+| `FLY_SPEED`, `FLY_CLIMB`, `FLY_ACCEL` | Flight pace, and how fast `Space` / `Shift` climb and descend |
+| `FLY_CEILING` | How high above y = 0 you may fly |
+| `WADE_EYE`, `WADE_SPEED` | The lowest the eye may sink, measured up from the surface, and the fraction of the walk pace a wade keeps |
 | `RETURN_SECONDS` | Length of the glide back to the opening shot |
 | `WALK_BOUNDS` | How far you're allowed to roam, in `main.js` |
-| `waterY` | Ground height below which the creek counts as a wall — raise it to keep further from the water |
+| `waterY` | The creek surface the wade floor and wet-feet test are measured from |
 
 **The toad** — `models/toad/monster.js`
 
@@ -477,10 +487,13 @@ MOVES="760,400 1000,520 1080,580" node tools/shot.mjs
 ```
 
 `DRAG` and `KEYS` do the same for the camera, so walking can be checked in a
-still too:
+still too. `Space` and `KeyF` are in the key map, so a hop or a take-off can be
+driven the same way:
 
 ```
 DRAG="800,300,800,215" KEYS="KeyW:2200,KeyD:3200" node tools/shot.mjs
+
+KEYS="KeyF:200,Space:1200,KeyW:2600" node tools/shot.mjs shot-flight.png
 ```
 
 `EVAL` runs before the first frame and `EVAL2` just before the second, so a

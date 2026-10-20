@@ -4,11 +4,13 @@
  * Two modes share the same camera:
  *
  *   idle — the composed hero shot, with its slow breath and pointer parallax.
- *   free — walk the banks with WASD, drag to look, R to glide back home.
+ *   free — walk, wade and fly with WASD, drag to look, R to glide back home.
  *
  * Walking is grounded on a heightmap sampled straight out of the terrain mesh at
- * load, and the water is treated as a wall rather than a floor: you can walk down
- * to the edge, but the camera never dives under the surface.
+ * load. Deep water is a floor rather than a wall: when the bed drops away, the
+ * eye settles just above the surface and the pace slows to a wade, so the creek
+ * can be crossed on foot. Space jumps; F toggles flight, where Space and Shift
+ * climb and descend and the whole diorama lies below you.
  *
  * Blender authored the terrain as a regular grid, so the vertex positions are
  * already the height samples. That makes the sampler exact and cheap, with a
@@ -37,6 +39,17 @@ const DRAG_THRESHOLD = 4;    // px before a press counts as a look-drag
 const CLICK_SLOP = 5;        // px under which a press counts as a click
 const RETURN_SECONDS = 1.25;
 
+const GRAVITY = 18;          // m/s², heavier than earth so a hop lands promptly
+const JUMP_SPEED = 5.2;      // m/s at take-off, about 0.75 m up
+const FALL_SPEED = 28;       // terminal velocity, m/s
+const AIR_ACCEL = 3;         // slower steering mid-jump, so momentum carries
+const FLY_SPEED = 6;         // m/s horizontal
+const FLY_CLIMB = 4.5;       // m/s vertical on Space / Shift
+const FLY_CEILING = 16;      // m above the world's y = 0
+const FLY_ACCEL = 6;
+const WADE_EYE = 0.55;       // m the eye rides above the surface
+const WADE_SPEED = 0.55;     // fraction of the walk pace in water
+
 export function createWalker({
   camera,
   hero,
@@ -46,6 +59,7 @@ export function createWalker({
   onEngage,
   onReturn,
   onClick,
+  onWade,
 }) {
   const heroPos = hero.pos.clone();
   const heroTarget = hero.target.clone();
@@ -76,6 +90,13 @@ export function createWalker({
   let returnTween = null;
   let bobPhase = 0;
 
+  let flying = false;
+  let grounded = true;
+  let velY = 0;
+  let spaceHeld = false;
+  let wading = false;
+  let wadeRippleT = 0;
+
   // ---- terrain -----------------------------------------------------------
   let sampler = null;
   let terrainMesh = null;
@@ -104,6 +125,29 @@ export function createWalker({
     return 0.2;
   }
 
+  /** The eye height the ground — or the creek's surface — would hold you at. */
+  function floorAt(x, z) {
+    return Math.max(groundAt(x, z) + EYE_HEIGHT, waterY + WADE_EYE);
+  }
+
+  /** True where the creek bed lies under the surface, so the feet are wet. */
+  function wadingAt(x, z) {
+    return groundAt(x, z) < waterY;
+  }
+
+  function jump() {
+    if (mode !== 'free' || flying || !grounded) return;
+    grounded = false;
+    velY = JUMP_SPEED;
+  }
+
+  function setFlying(next) {
+    flying = next;
+    velY = 0;
+    grounded = false;
+    document.body.classList.toggle('is-flying', flying);
+  }
+
   // ---- pointer look ------------------------------------------------------
   const canvas = camera.userData.canvas || document.getElementById('scene');
   let press = null;
@@ -120,6 +164,11 @@ export function createWalker({
     pos.set(camera.position.x, camera.position.z);
     eyeY = camera.position.y;
     vel.set(0, 0);
+    velY = 0;
+    flying = false;
+    grounded = true;
+    wading = false;
+    document.body.classList.remove('is-flying');
     onEngage?.();
   }
 
@@ -132,6 +181,12 @@ export function createWalker({
       fromQuat: camera.quaternion.clone(),
     };
     vel.set(0, 0);
+    velY = 0;
+    flying = false;
+    grounded = false;
+    wading = false;
+    spaceHeld = false;
+    document.body.classList.remove('is-flying');
     actions.clear();
     stick.set(0, 0);
     onReturn?.();
@@ -200,6 +255,28 @@ export function createWalker({
       return;
     }
 
+    if (e.code === 'Space') {
+      // the first press jumps; holding it climbs in flight. Repeats keep the
+      // flag held rather than firing a second jump.
+      spaceHeld = true;
+      if (mode === 'idle') enter();
+      if (mode === 'free') {
+        e.preventDefault();
+        if (!e.repeat && !flying) jump();
+      }
+      return;
+    }
+
+    if (e.code === 'KeyF') {
+      if (e.repeat) return;
+      if (mode === 'idle') enter();
+      if (mode === 'free') {
+        e.preventDefault();
+        setFlying(!flying);
+      }
+      return;
+    }
+
     if (e.code === 'KeyR' || e.code === 'Escape') {
       returnHome();
     }
@@ -208,11 +285,13 @@ export function createWalker({
   window.addEventListener('keyup', (e) => {
     const action = KEY_ACTIONS.get(e.code);
     if (action) actions.delete(action);
+    if (e.code === 'Space') spaceHeld = false;
   });
 
   window.addEventListener('blur', () => {
     actions.clear();
     stick.set(0, 0);
+    spaceHeld = false;
   });
 
   // ---- touch stick -------------------------------------------------------
@@ -252,6 +331,43 @@ export function createWalker({
       });
       pad.addEventListener('pointerup', release);
       pad.addEventListener('pointercancel', release);
+    }
+
+    // the keyboard's Space, F and Shift, for thumbs
+    const jumpButton = document.getElementById('jump');
+    const flyButton = document.getElementById('fly');
+    const downButton = document.getElementById('down');
+
+    if (jumpButton) {
+      jumpButton.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        try { jumpButton.setPointerCapture(e.pointerId); } catch { /* fine */ }
+        if (mode === 'idle') enter();
+        spaceHeld = true;
+        if (mode === 'free' && !flying) jump();
+      });
+      const releaseJump = () => { spaceHeld = false; };
+      jumpButton.addEventListener('pointerup', releaseJump);
+      jumpButton.addEventListener('pointercancel', releaseJump);
+    }
+
+    if (flyButton) {
+      flyButton.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        if (mode === 'idle') enter();
+        if (mode === 'free') setFlying(!flying);
+      });
+    }
+
+    if (downButton) {
+      const releaseDown = () => actions.delete('sprint');
+      downButton.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        try { downButton.setPointerCapture(e.pointerId); } catch { /* fine */ }
+        actions.add('sprint');
+      });
+      downButton.addEventListener('pointerup', releaseDown);
+      downButton.addEventListener('pointercancel', releaseDown);
     }
   }
 
@@ -315,14 +431,22 @@ export function createWalker({
     let len = Math.hypot(fwd, strafe);
     if (len > 1) { fwd /= len; strafe /= len; len = 1; }
 
-    const speed = actions.has('sprint') ? SPRINT_SPEED : WALK_SPEED;
+    const sprinting = !flying && !wading && actions.has('sprint');
+    const pace = flying
+      ? FLY_SPEED
+      : (sprinting ? SPRINT_SPEED : WALK_SPEED) * (wading ? WADE_SPEED : 1);
+
     const sinY = Math.sin(yaw);
     const cosY = Math.cos(yaw);
     // forward = (-sin yaw, 0, -cos yaw); right = (cos yaw, 0, -sin yaw)
-    const wantX = (-sinY * fwd + cosY * strafe) * speed;
-    const wantZ = (-cosY * fwd - sinY * strafe) * speed;
+    const wantX = (-sinY * fwd + cosY * strafe) * pace;
+    const wantZ = (-cosY * fwd - sinY * strafe) * pace;
 
-    const accel = 1 - Math.exp(-dt * (len > 0.05 ? 9 : 12));
+    const accel = flying
+      ? 1 - Math.exp(-dt * FLY_ACCEL)
+      : !grounded
+        ? 1 - Math.exp(-dt * AIR_ACCEL)
+        : 1 - Math.exp(-dt * (len > 0.05 ? 9 : 12));
     vel.x += (wantX - vel.x) * accel;
     vel.y += (wantZ - vel.y) * accel;
 
@@ -335,29 +459,49 @@ export function createWalker({
     if (nextZ < bounds.minZ) { nextZ = bounds.minZ; vel.y = Math.max(vel.y, 0); }
     if (nextZ > bounds.maxZ) { nextZ = bounds.maxZ; vel.y = Math.min(vel.y, 0); }
 
-    // the creek is a wall. Try the move, then each axis on its own, so the
-    // camera slides along the bank instead of sticking to it.
-    if (groundAt(nextX, nextZ) < waterY) {
-      const xOk = groundAt(nextX, pos.y) >= waterY;
-      const zOk = groundAt(pos.x, nextZ) >= waterY;
-      if (xOk) { nextZ = pos.y; vel.y = 0; }
-      else if (zOk) { nextX = pos.x; vel.x = 0; }
-      else { nextX = pos.x; nextZ = pos.y; vel.set(0, 0); }
-    }
-
     pos.set(nextX, nextZ);
 
-    // settle onto the ground rather than snapping over bumps
-    const wanted = groundAt(pos.x, pos.y) + EYE_HEIGHT;
-    eyeY += (wanted - eyeY) * (1 - Math.exp(-dt * 8));
+    // the creek is a floor, not a wall: walk in and the eye settles onto the
+    // surface, slow and low, until the far bank lifts it back out
+    const floorY = floorAt(pos.x, pos.y);
+    wading = !flying && grounded && wadingAt(pos.x, pos.y);
+
+    if (flying) {
+      const climb = (spaceHeld ? 1 : 0) - (actions.has('sprint') ? 1 : 0);
+      eyeY += climb * FLY_CLIMB * dt;
+      eyeY = THREE.MathUtils.clamp(eyeY, floorY, FLY_CEILING);
+    } else if (grounded) {
+      // settle onto the ground rather than snapping over bumps
+      eyeY += (floorY - eyeY) * (1 - Math.exp(-dt * 8));
+    } else {
+      velY = Math.max(velY - GRAVITY * dt, -FALL_SPEED);
+      eyeY += velY * dt;
+      if (eyeY <= floorY) {
+        eyeY = floorY;
+        velY = 0;
+        grounded = true;
+      }
+    }
 
     // a small bob, in step with how fast you're actually moving: it eases in
-    // from a standstill and stops dead when you do
+    // from a standstill and stops dead when you do. It has no place in the air
+    // or in the water.
     const moving = Math.hypot(vel.x, vel.y);
     bobPhase += dt * (3.2 + moving * 2.6);
-    const bob = reducedMotion
+    const bob = reducedMotion || flying || !grounded || wading
       ? 0
       : Math.min(moving / WALK_SPEED, 1) * BOB_HEIGHT * Math.sin(bobPhase);
+
+    // a wade leaves rings behind
+    if (wading && moving > 0.15) {
+      wadeRippleT += dt;
+      if (wadeRippleT > 0.55) {
+        wadeRippleT = 0;
+        onWade?.(pos.x, pos.y, Math.min(0.3, 0.14 + moving * 0.05));
+      }
+    } else {
+      wadeRippleT = 0;
+    }
 
     camera.position.set(pos.x, eyeY + bob, pos.y);
     lookEuler.set(pitch, yaw, 0);
@@ -372,8 +516,17 @@ export function createWalker({
     get isFree() { return mode === 'free'; },
     get isReturning() { return mode === 'returning'; },
     get isIdle() { return mode === 'idle'; },
+    get isFlying() { return flying; },
+    get isWading() { return wading; },
     get dragging() { return dragging; },
     get usingStick() { return isTouch; },
+
+    // for debugging and for the screenshot tool's A/B checks
+    jump,
+    toggleFlight() {
+      if (mode === 'idle') enter();
+      if (mode === 'free') setFlying(!flying);
+    },
 
     /** pointer position in NDC, for the idle parallax */
     setPointerParallax(x, y) {
