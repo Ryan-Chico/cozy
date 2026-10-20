@@ -23,9 +23,9 @@
  * and a smaller sword in the other, and the red card is that sword's beam: it
  * leaves the sword's emitter and sprays down and out past the machine's side.
  * The build bakes the Sketchfab node's own matrix into it, so it stays on that
- * emitter instead of floating beside the shoulder. At `face: -45` the chest
- * stays three-quarter while the beam cuts across the near water and the gun
- * stays across the channel.
+ * emitter instead of floating beside the shoulder. `face: -55` is a step right
+ * from the three-quarter: the chest squares up a little while the beam cuts
+ * across the near water and the gun stays across the channel.
  */
 
 const ENV_INTENSITY = 1.12;
@@ -65,7 +65,7 @@ export default {
   size: 13,
   measure: 'Gun_Sword002',   // three.js strips the space and dot from "Gun Sword.002"
   at: [18, 1.5, 0],
-  face: -45,
+  face: -55,
   grounded: true,
 
   castShadow: true,
