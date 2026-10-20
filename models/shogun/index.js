@@ -23,9 +23,9 @@
  * and a smaller sword in the other, and the red card is that sword's beam: it
  * leaves the sword's emitter and sprays down and out past the machine's side.
  * The build bakes the Sketchfab node's own matrix into it, so it stays on that
- * emitter instead of floating beside the shoulder. `face: -55` is a step right
- * from the three-quarter: the chest squares up a little while the beam cuts
- * across the near water and the gun stays across the channel.
+ * emitter instead of floating beside the shoulder. `face: -70` turns it
+ * further to its right: the chest squares to the camera and the beam swings
+ * clear of the hip to lie across the near water, the gun across the channel.
  */
 
 const ENV_INTENSITY = 1.12;
@@ -37,8 +37,8 @@ const GLOW_BOOST = 1.25;
 // kept out of the fog and pushed past the general glow boost: at 36 m the haze
 // otherwise turns a red beam into a pink smudge.
 const BLADE_COLOUR = [1.0, 0.064, 0.08];
-const BLADE_OPACITY = 0.8;
-const BLADE_GLOW = 2.0;
+const BLADE_OPACITY = 0.95;
+const BLADE_GLOW = 2.2;
 
 export default {
   id: 'shogun',
@@ -57,15 +57,15 @@ export default {
   // At x = 18 the channel is about 10.8 m wide and 1.5 m deep. `grounded`
   // anchors whatever `measure` names, and here that is the gun: at this scale
   // the weapon hangs 1.4 m above the feet, so left alone the feet would stand
-  // 1.4 m inside the bed. The 1.5 m of `at` gives that back — feet on the bed,
-  // water line at the shins — and holds the beam's upper half above the
-  // surface, where it reads. The camera is then 36 m away, where the opening
-  // shot's fifteen degrees of sky allow a top at roughly 11.8 m: 9.6 m of
-  // machine clears it with the treeline behind.
+  // 1.4 m inside the bed. The 1.5 m of `at` gives that back; the extra 0.6 m
+  // lifts the whole red card clear of the near bank, where at the waterline it
+  // read as a pink smudge. The feet stay under the surface. The camera is then
+  // 36 m away, where the opening shot's fifteen degrees of sky allow a top at
+  // roughly 11.8 m: 9.6 m of machine clears it with the treeline behind.
   size: 13,
   measure: 'Gun_Sword002',   // three.js strips the space and dot from "Gun Sword.002"
-  at: [18, 1.5, 0],
-  face: -55,
+  at: [18, 2.1, 0],
+  face: -70,
   grounded: true,
 
   castShadow: true,

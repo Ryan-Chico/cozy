@@ -309,7 +309,7 @@ the near bank. That is the intent. It reads as a moment, not as an object.
 | `size` | The gun's 7.3 m reach, not the mecha's 5.4 m height |
 | `measure` | Names `Gun_Sword002`, so the beam reaching past the gun does not change the scale |
 | `at` | Where it stands, in three.js metres; y lifts the machine clear of the bed |
-| `face` | Yaw; zero points down +Z, and -55 turns it a step to its right while the beam cuts across the near water |
+| `face` | Yaw; zero points down +Z, and -70 turns it further right so the beam lies across the near water instead of behind the hip |
 | `ENV_INTENSITY`, `COLOUR_LIFT` | How much sky the armour takes, and how far the rust sits off black |
 | `GLOW_BOOST`, `BLADE_GLOW` | How hard the vents, the sensors and the blade glow |
 | `BLADE_COLOUR`, `BLADE_OPACITY` | The beam's tint and card opacity |
@@ -321,9 +321,11 @@ describing the weapon. `measure` names the gun — three.js has already stripped
 space and the dot from Blender's `Gun Sword.002` — so the red beam, which the
 machine's other sword sprays out past it, does not shrink the mecha with it.
 `grounded` then anchors that named gun on the bed, and since the weapon hangs
-1.4 m above the feet at this scale, `at` carries 1.5 m to land the feet on the bed
-and keep the waterline at the shins. At 13 it is a 9.6 m machine: a head above
-the treeline, a shin in the water, and well inside the opening frame.
+1.4 m above the feet at this scale, `at` carries 1.5 m to land the feet on the
+bed. The extra 0.6 m lifts the red card clear of the near bank, so the whole
+spray reads instead of drowning at the surface. At 13 it is a 9.6 m machine: a
+head above the treeline, ankle-deep in the water, and well inside the opening
+frame.
 
 **The breeze** — `src/wind.js`
 
