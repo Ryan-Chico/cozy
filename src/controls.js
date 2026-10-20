@@ -45,7 +45,7 @@ const FALL_SPEED = 28;       // terminal velocity, m/s
 const AIR_ACCEL = 3;         // slower steering mid-jump, so momentum carries
 const FLY_SPEED = 6;         // m/s horizontal
 const FLY_CLIMB = 4.5;       // m/s vertical on Space / Shift
-const FLY_CEILING = 16;      // m above the world's y = 0
+const FLY_CEILING = 90;      // m above the world's y = 0, above the Angel's wing tips
 const FLY_ACCEL = 6;
 const WADE_EYE = 0.55;       // m the eye rides above the surface
 const WADE_SPEED = 0.55;     // fraction of the walk pace in water
@@ -54,6 +54,7 @@ export function createWalker({
   camera,
   hero,
   bounds,
+  flyBounds = bounds,
   waterY = 0.08,
   reducedMotion = false,
   onEngage,
@@ -453,11 +454,19 @@ export function createWalker({
     let nextX = pos.x + vel.x * dt;
     let nextZ = pos.y + vel.y * dt;
 
-    // stay on the map
-    if (nextX < bounds.minX) { nextX = bounds.minX; vel.x = Math.max(vel.x, 0); }
-    if (nextX > bounds.maxX) { nextX = bounds.maxX; vel.x = Math.min(vel.x, 0); }
-    if (nextZ < bounds.minZ) { nextZ = bounds.minZ; vel.y = Math.max(vel.y, 0); }
-    if (nextZ > bounds.maxZ) { nextZ = bounds.maxZ; vel.y = Math.min(vel.y, 0); }
+    // stay on the map. Flight has its own, much larger airspace; if you set
+    // down outside the walking corridor the way back in is open, but the way
+    // further out is not.
+    const limit = flying ? flyBounds : bounds;
+    const loX = Math.min(limit.minX, pos.x);
+    const hiX = Math.max(limit.maxX, pos.x);
+    const loZ = Math.min(limit.minZ, pos.y);
+    const hiZ = Math.max(limit.maxZ, pos.y);
+
+    if (nextX < loX) { nextX = loX; vel.x = Math.max(vel.x, 0); }
+    if (nextX > hiX) { nextX = hiX; vel.x = Math.min(vel.x, 0); }
+    if (nextZ < loZ) { nextZ = loZ; vel.y = Math.max(vel.y, 0); }
+    if (nextZ > hiZ) { nextZ = hiZ; vel.y = Math.min(vel.y, 0); }
 
     pos.set(nextX, nextZ);
 

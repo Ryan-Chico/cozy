@@ -32,8 +32,9 @@ stepping stones, a fallen log, fireflies drifting over the water. Dusk, warm and
 hazy.
 
 It opens on a composed shot. Move and you take the camera over: walk the banks,
-wade the creek or fly over it, or just stand and watch. `R` glides you back to
-where you started.
+wade the creek, or take off over the whole scene — back to the Angel of Justice
+or out past the B-17 — or just stand and watch. `R` glides you back to where you
+started.
 
 There is a breeze. It is not decoration — it travels in gusts down the creek,
 swelling and easing, and every blade, frond and canopy in the scene bends from
@@ -78,11 +79,15 @@ the scales in its hand and the spread of its wings need a look up.
 
 You're held at eye height on the terrain; deep water is a floor, not a wall.
 Wade in and the pace drops; where the bed falls away the eye settles just above
-the surface, so the creek can be crossed on foot. `prefers-reduced-motion`
-quietly drops the idle drift.
+the surface, so the creek can be crossed on foot. Flight is not fenced to the
+creek either: the airspace runs from the Angel of Justice in the haze behind
+you, past the B-17 and over the treeline. `prefers-reduced-motion` quietly drops
+the idle drift.
 
 One honest gap: only the ground and the water are solid. Trees, bushes and
-boulders have no collision, so you can walk — or fly — through them.
+boulders have no collision, so you can walk — or fly — through them, and past
+the terrain's edge there is no ground at all: the eye holds the height of the
+nearest bank, so setting down out there stands you on fog. `R` brings you home.
 
 ## Adding your own model
 
@@ -243,6 +248,7 @@ Nearly everything worth changing is a named constant at the top of a file.
 | `AIR_ACCEL` | How much steering a jump keeps |
 | `FLY_SPEED`, `FLY_CLIMB`, `FLY_ACCEL` | Flight pace, and how fast `Space` / `Shift` climb and descend |
 | `FLY_CEILING` | How high above y = 0 you may fly |
+| `FLY_BOUNDS` | The airspace you may fly in, in `main.js` — far larger than the walking corridor |
 | `WADE_EYE`, `WADE_SPEED` | The lowest the eye may sink, measured up from the surface, and the fraction of the walk pace a wade keeps |
 | `RETURN_SECONDS` | Length of the glide back to the opening shot |
 | `WALK_BOUNDS` | How far you're allowed to roam, in `main.js` |

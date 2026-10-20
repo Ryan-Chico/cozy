@@ -52,6 +52,11 @@ const RIPPLE_H = 384;
 // stay a little inside the terrain edge so you never see the world end
 const WALK_BOUNDS = { minX: -30, maxX: 30, minZ: -13, maxZ: 13 };
 
+// flight is not fenced to the creek: the airspace runs from the Angel of
+// Justice, 80 m tall at x = -86 behind the opening shot, out past the B-17 at
+// x = 37. The fog is the horizon; these are only where the air runs out.
+const FLY_BOUNDS = { minX: -140, maxX: 70, minZ: -70, maxZ: 70 };
+
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ------------------------------------------------------------------ setup
@@ -442,6 +447,7 @@ gltfLoader.load(
       camera,
       hero: { pos: CAM_POS, target: CAM_TARGET },
       bounds: WALK_BOUNDS,
+      flyBounds: FLY_BOUNDS,
       // Blender's WATER_Z is 0, so this is "the water surface minus a few cm".
       // It is the line the bed has to fall under before the feet count as wet,
       // and the eye never sinks below it plus WADE_EYE.

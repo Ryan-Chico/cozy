@@ -6,8 +6,8 @@
  * Sketchfab wrappers, turns it onto the project's facing convention, grounds
  * the base, trims the dead UV layers and cuts the maps to 1024/512.
  *
- * It stands past the upstream end of the creek, behind the opening camera. The
- * visitor never reaches it -- the walk bounds stop at x = -30 and it is at
+ * It stands past the upstream end of the creek, behind the opening camera. On
+ * foot you never reach it -- the walk bounds stop at x = -30 and it is at
  * x = -86 -- so `grounded` is off and its height is given directly: the terrain
  * sampler clamps outside the terrain, and asking it where the ground is out
  * there would answer for a bank 54 m away. Its feet are 8 m under the
